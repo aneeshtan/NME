@@ -17,6 +17,8 @@ interface Props {
   /** Forces a recompute when LiveKit state changes; see useRoom. */
   version: number;
   screenShare: { participant: Participant } | null;
+  reactions: { identity: string; emoji: string }[];
+  raisedHands: Set<string>;
   /** Identity to feature, or null for the equal grid. */
   pinnedIdentity: string | null;
   /** When true, the loudest speaker is featured unless something is pinned. */
@@ -28,6 +30,8 @@ export function Grid({
   room,
   version,
   screenShare,
+  reactions,
+  raisedHands,
   pinnedIdentity,
   followSpeaker,
   onPin,
@@ -72,6 +76,8 @@ export function Grid({
         speakingIds={speakingIds}
         onPin={onPin}
         pinnedIdentity={pinnedIdentity}
+        reactions={reactions}
+        raisedHands={raisedHands}
       />
     );
   }
@@ -93,7 +99,7 @@ export function Grid({
               className="aspect-video w-32 shrink-0 lg:w-full"
             >
               <VideoTile
-                {...tileState(participant)}
+                {...tileState(participant, Track.Source.Camera, { reactions, raisedHands })}
                 isLocal={participant === room.localParticipant}
                 isSpeaking={speakingIds.has(participant.identity)}
               />
@@ -117,7 +123,7 @@ export function Grid({
           className="video-tile cursor-pointer text-left"
         >
           <VideoTile
-            {...tileState(participant)}
+            {...tileState(participant, Track.Source.Camera, { reactions, raisedHands })}
             isLocal={participant === room.localParticipant}
             isSpeaking={speakingIds.has(participant.identity)}
           />
@@ -135,7 +141,11 @@ export function Grid({
  * only way `memo` can observe a camera being toggled is if the changed values
  * arrive as new props.
  */
-function tileState(participant: Participant, source: Track.Source = Track.Source.Camera) {
+function tileState(
+  participant: Participant,
+  source: Track.Source = Track.Source.Camera,
+  overlays?: { reactions: { identity: string; emoji: string }[]; raisedHands: Set<string> },
+) {
   const videoPublication = participant.getTrackPublication(source);
   const micPublication = participant.getTrackPublication(Track.Source.Microphone);
 
@@ -146,6 +156,9 @@ function tileState(participant: Participant, source: Track.Source = Track.Source
     videoMuted: videoPublication?.isMuted !== false,
     audioTrack: micPublication?.track,
     audioMuted: micPublication?.isMuted !== false,
+    handRaised: overlays?.raisedHands.has(participant.identity) ?? false,
+    reaction:
+      overlays?.reactions.find((r) => r.identity === participant.identity)?.emoji ?? null,
     source,
   };
 }
@@ -176,6 +189,8 @@ function Featured({
   speakingIds,
   onPin,
   pinnedIdentity,
+  reactions,
+  raisedHands,
 }: {
   room: Room;
   featured: Participant;
@@ -183,6 +198,8 @@ function Featured({
   speakingIds: Set<string>;
   onPin: (identity: string | null) => void;
   pinnedIdentity: string | null;
+  reactions: { identity: string; emoji: string }[];
+  raisedHands: Set<string>;
 }) {
   return (
     <div className="flex h-full w-full flex-col gap-2 lg:flex-row">
@@ -193,7 +210,7 @@ function Featured({
         className="min-h-0 flex-1 cursor-pointer text-left"
       >
         <VideoTile
-          {...tileState(featured)}
+          {...tileState(featured, Track.Source.Camera, { reactions, raisedHands })}
           isLocal={featured === room.localParticipant}
           isSpeaking={speakingIds.has(featured.identity)}
         />
@@ -211,7 +228,7 @@ function Featured({
               className="aspect-video w-32 shrink-0 cursor-pointer text-left lg:w-full"
             >
               <VideoTile
-                {...tileState(participant)}
+                {...tileState(participant, Track.Source.Camera, { reactions, raisedHands })}
                 isLocal={participant === room.localParticipant}
                 isSpeaking={speakingIds.has(participant.identity)}
               />

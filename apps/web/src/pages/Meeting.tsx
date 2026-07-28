@@ -18,6 +18,8 @@ import { DeviceMenu } from '../room/DeviceMenu';
 import { Chat } from '../room/Chat';
 import { useMessaging } from '../room/useMessaging';
 import { useMutedSpeechDetector } from '../room/useMutedSpeechDetector';
+import { usePresenceAlerts } from '../room/usePresenceAlerts';
+import { REACTIONS } from '../lib/messaging';
 import { buildMeetingUrl, readRoomKeyFromUrl } from '../lib/e2ee';
 import { loadDevicePrefs, saveDevicePrefs, saveDisplayName } from '../lib/storage';
 import { Logo } from '../components/Logo';
@@ -49,6 +51,8 @@ export default function Meeting({ roomId }: Props) {
   const [pinnedIdentity, setPinnedIdentity] = useState<string | null>(null);
   const [followSpeaker, setFollowSpeaker] = useState(false);
   const [warnWhenMuted, setWarnWhenMuted] = useState(false);
+  const [reactionsOpen, setReactionsOpen] = useState(false);
+  const [presenceSound, setPresenceSound] = useState(true);
   const [busy, setBusy] = useState(false);
 
   const deviceState = useDevices(room);
@@ -63,6 +67,8 @@ export default function Meeting({ roomId }: Props) {
   // Only hold the screen awake while actually in a call.
   useWakeLock(status === 'connected');
   useAudioOnly(room, audioOnly);
+
+  const notices = usePresenceAlerts(room, presenceSound);
 
   const micLive = room?.localParticipant.isMicrophoneEnabled ?? false;
   const speakingWhileMuted = useMutedSpeechDetector(
@@ -227,13 +233,29 @@ export default function Meeting({ roomId }: Props) {
   const quality = qualityLevel(room.localParticipant.connectionQuality);
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="relative flex h-full flex-col">
       {status === 'reconnecting' && (
         <div
           role="status"
           className="bg-accent px-4 py-2 text-center text-sm font-medium text-white"
         >
           Reconnecting…
+        </div>
+      )}
+
+      {notices.length > 0 && (
+        <div
+          aria-live="polite"
+          className="pointer-events-none absolute inset-x-0 top-2 z-30 flex flex-col items-center gap-1"
+        >
+          {notices.map((notice) => (
+            <span
+              key={notice.id}
+              className="rounded-full bg-elevated/95 px-3 py-1 text-xs font-medium shadow-lg"
+            >
+              {notice.text}
+            </span>
+          ))}
         </div>
       )}
 
@@ -304,6 +326,8 @@ export default function Meeting({ roomId }: Props) {
             room={room}
             version={version}
             screenShare={screenShare ? { participant: screenShare.participant } : null}
+            reactions={messaging.reactions}
+            raisedHands={messaging.raisedHands}
             pinnedIdentity={pinnedIdentity}
             followSpeaker={followSpeaker}
             onPin={setPinnedIdentity}
@@ -334,6 +358,8 @@ export default function Meeting({ roomId }: Props) {
           busy={busy}
           settingsOpen={settingsOpen}
           chatOpen={chatOpen}
+          handRaised={messaging.handRaised}
+          reactionsOpen={reactionsOpen}
           unreadCount={messaging.unread}
           followSpeaker={followSpeaker}
           onToggleMic={() => void toggleMic()}
@@ -342,6 +368,8 @@ export default function Meeting({ roomId }: Props) {
           onToggleParticipants={() => setParticipantsOpen((open) => !open)}
           onToggleSettings={() => setSettingsOpen((open) => !open)}
           onToggleChat={() => setChatOpen((open) => !open)}
+          onToggleHand={() => void messaging.toggleHand()}
+          onToggleReactions={() => setReactionsOpen((open) => !open)}
           onToggleFollowSpeaker={() => {
             setFollowSpeaker((on) => !on);
             // Leaving a stale pin behind would make the toggle appear inert.
@@ -349,6 +377,29 @@ export default function Meeting({ roomId }: Props) {
           }}
           onLeave={handleLeave}
         >
+          {reactionsOpen && (
+            <div
+              role="dialog"
+              aria-label="Send a reaction"
+              className="absolute bottom-full left-1/2 z-30 mb-3 flex -translate-x-1/2 gap-1 rounded-full border border-border bg-elevated px-2 py-1.5 shadow-xl"
+            >
+              {REACTIONS.map((emoji) => (
+                <button
+                  key={emoji}
+                  type="button"
+                  aria-label={`React with ${emoji}`}
+                  onClick={() => {
+                    void messaging.sendReaction(emoji);
+                    setReactionsOpen(false);
+                  }}
+                  className="tap-target inline-flex items-center justify-center rounded-full text-xl transition-transform hover:scale-125"
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          )}
+
           {settingsOpen && (
             <DeviceMenu
               state={deviceState}
@@ -356,6 +407,8 @@ export default function Meeting({ roomId }: Props) {
               onToggleAudioOnly={() => setAudioOnly((on) => !on)}
               warnWhenMuted={warnWhenMuted}
               onToggleWarnWhenMuted={() => setWarnWhenMuted((on) => !on)}
+              presenceSound={presenceSound}
+              onTogglePresenceSound={() => setPresenceSound((on) => !on)}
               onClose={() => setSettingsOpen(false)}
             />
           )}

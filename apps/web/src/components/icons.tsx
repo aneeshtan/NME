@@ -203,3 +203,23 @@ export function LayoutIcon(props: IconProps) {
     </Icon>
   );
 }
+
+export function HandIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M11 11V4.5a1.5 1.5 0 0 1 3 0V11" />
+      <path d="M8 12.5V7a1.5 1.5 0 0 1 3 0v4" />
+      <path d="M14 11V6.5a1.5 1.5 0 0 1 3 0V13" />
+      <path d="M17 10.5a1.5 1.5 0 0 1 3 0V14a7 7 0 0 1-7 7h-1a7 7 0 0 1-7-7v-1.5a1.5 1.5 0 0 1 3 0" />
+    </Icon>
+  );
+}
+
+export function CalendarIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="3" y="5" width="18" height="16" rx="2.5" />
+      <path d="M3 10h18M8 3v4M16 3v4" />
+    </Icon>
+  );
+}

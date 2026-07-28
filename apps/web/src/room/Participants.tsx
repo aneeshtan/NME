@@ -1,10 +1,12 @@
 /**
  * Participants panel. Optional surface, kept to a list and a copy-link action.
  */
+import { useState } from 'react';
 import type { Room } from 'livekit-client';
 import { Track } from 'livekit-client';
-import { CloseIcon, MicOffIcon } from '../components/icons';
+import { CalendarIcon, CloseIcon, MicOffIcon } from '../components/icons';
 import { CopyLinkButton } from '../components/CopyLinkButton';
+import { ScheduleDialog } from '../components/ScheduleDialog';
 
 interface Props {
   room: Room;
@@ -16,6 +18,7 @@ interface Props {
 }
 
 export function Participants({ room, version, meetingUrl, onAskToMute, onClose }: Props) {
+  const [scheduling, setScheduling] = useState(false);
   void version; // Re-render trigger; state is read from the live Room below.
   const participants = [room.localParticipant, ...room.remoteParticipants.values()];
 
@@ -80,7 +83,22 @@ export function Participants({ room, version, meetingUrl, onAskToMute, onClose }
       </ul>
 
       <footer className="border-t border-border p-3">
-        <CopyLinkButton url={meetingUrl} className="w-full" />
+        <div className="flex gap-2">
+          <CopyLinkButton url={meetingUrl} className="min-w-0 flex-1" />
+          <button
+            type="button"
+            onClick={() => setScheduling(true)}
+            aria-label="Add to calendar"
+            title="Add to calendar"
+            className="tap-target inline-flex shrink-0 items-center justify-center rounded-lg border border-border bg-elevated px-3 hover:bg-border"
+          >
+            <CalendarIcon className="h-4.5 w-4.5" />
+          </button>
+        </div>
+
+        {scheduling && (
+          <ScheduleDialog meetingUrl={meetingUrl} onClose={() => setScheduling(false)} />
+        )}
         <p className="mt-2 px-1 text-[0.6875rem] leading-relaxed text-muted">
           The link contains this meeting&rsquo;s encryption key. Share it only with people you
           want in the call.

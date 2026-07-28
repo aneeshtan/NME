@@ -33,7 +33,35 @@ export type MuteRequest = {
   at: number;
 };
 
-export type RoomMessage = ChatMessage | MuteRequest;
+/**
+ * A transient reaction. Deliberately not persisted anywhere — it exists for the
+ * few seconds it is on screen and then it is gone, like a nod in a room.
+ */
+export type Reaction = {
+  type: 'reaction';
+  at: number;
+  emoji: string;
+};
+
+/** Raised-hand state. Sent on change, and re-sent when someone new joins. */
+export type HandState = {
+  type: 'hand';
+  at: number;
+  up: boolean;
+};
+
+export type RoomMessage = ChatMessage | MuteRequest | Reaction | HandState;
+
+/**
+ * Allow-list of reaction emoji.
+ *
+ * A peer shares the room key and can therefore produce any valid ciphertext, so
+ * the emoji is attacker-controlled text rendered into everyone's UI. Restricting
+ * it to a fixed set means no arbitrary string — however long, however
+ * adversarially composed — ever reaches a tile.
+ */
+export const REACTIONS = ['👍', '👏', '🎉', '😂', '❤️', '🤔'] as const;
+export type ReactionEmoji = (typeof REACTIONS)[number];
 
 /** Separate info string so the chat key is not the media key. */
 const HKDF_INFO = 'nme-chat-v1';
@@ -141,6 +169,16 @@ function validate(value: unknown): RoomMessage | null {
 
   if (record.type === 'mute-request') {
     return { type: 'mute-request', at };
+  }
+
+  if (record.type === 'reaction') {
+    // Anything outside the allow-list is dropped rather than rendered.
+    const emoji = REACTIONS.find((allowed) => allowed === record.emoji);
+    return emoji ? { type: 'reaction', at, emoji } : null;
+  }
+
+  if (record.type === 'hand') {
+    return typeof record.up === 'boolean' ? { type: 'hand', at, up: record.up } : null;
   }
 
   return null;

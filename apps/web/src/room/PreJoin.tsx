@@ -11,6 +11,8 @@ import { Logo } from '../components/Logo';
 import { CameraIcon, CameraOffIcon, MicIcon, MicOffIcon, ShieldIcon } from '../components/icons';
 import { DISPLAY_NAME_MAX_LENGTH, loadDisplayName } from '../lib/storage';
 import { CopyLinkButton } from '../components/CopyLinkButton';
+import { ScheduleDialog } from '../components/ScheduleDialog';
+import { CalendarIcon } from '../components/icons';
 
 interface Props {
   roomId: string;
@@ -38,6 +40,7 @@ export function PreJoin({
   const inputRef = useRef<HTMLInputElement>(null);
   const previewRef = useRef<HTMLVideoElement>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
+  const [scheduling, setScheduling] = useState(false);
 
   // A returning user's name is already filled in, so send focus to the button
   // instead of making them dismiss a pre-selected field.
@@ -150,7 +153,24 @@ export function PreJoin({
             control lives behind the in-call participants panel, which means
             joining first just to invite people.
           */}
-          {meetingUrl && <CopyLinkButton url={meetingUrl} className="mt-4 w-full" />}
+          {meetingUrl && (
+            <div className="mt-4 flex gap-2">
+              <CopyLinkButton url={meetingUrl} className="min-w-0 flex-1" />
+              <button
+                type="button"
+                onClick={() => setScheduling(true)}
+                aria-label="Add to calendar"
+                title="Add to calendar"
+                className="tap-target inline-flex shrink-0 items-center justify-center rounded-lg border border-border bg-elevated px-3 hover:bg-border"
+              >
+                <CalendarIcon className="h-4.5 w-4.5" />
+              </button>
+            </div>
+          )}
+
+          {scheduling && meetingUrl && (
+            <ScheduleDialog meetingUrl={meetingUrl} onClose={() => setScheduling(false)} />
+          )}
 
           <label htmlFor="displayName" className="mt-6 block text-sm font-medium">
             Your name

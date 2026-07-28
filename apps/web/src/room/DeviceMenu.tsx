@@ -16,6 +16,8 @@ interface Props {
   onToggleAudioOnly: () => void;
   warnWhenMuted: boolean;
   onToggleWarnWhenMuted: () => void;
+  presenceSound: boolean;
+  onTogglePresenceSound: () => void;
   onClose: () => void;
 }
 
@@ -31,6 +33,8 @@ export function DeviceMenu({
   onToggleAudioOnly,
   warnWhenMuted,
   onToggleWarnWhenMuted,
+  presenceSound,
+  onTogglePresenceSound,
   onClose,
 }: Props) {
   const panelRef = useRef<HTMLDivElement>(null);
@@ -123,6 +127,21 @@ export function DeviceMenu({
           <span className="block text-sm font-medium">Audio only</span>
           <span className="mt-0.5 block text-xs leading-relaxed text-muted">
             Stop receiving video to save data and battery. Others can still see you.
+          </span>
+        </span>
+      </label>
+
+      <label className="mt-3 flex cursor-pointer items-start gap-2.5">
+        <input
+          type="checkbox"
+          checked={presenceSound}
+          onChange={onTogglePresenceSound}
+          className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-accent)]"
+        />
+        <span>
+          <span className="block text-sm font-medium">Join and leave sounds</span>
+          <span className="mt-0.5 block text-xs leading-relaxed text-muted">
+            A short chime when someone enters or leaves.
           </span>
         </span>
       </label>

@@ -225,3 +225,23 @@
   padding-left: max(0.75rem, env(safe-area-inset-left));
   padding-right: max(0.75rem, env(safe-area-inset-right));
 }
+
+/* Reaction: rises and fades, so it reads as a moment rather than a label. */
+@keyframes reaction {
+  0% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.7);
+  }
+  15% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  70% {
+    opacity: 1;
+    transform: translateY(-10px);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-28px);
+  }
+}

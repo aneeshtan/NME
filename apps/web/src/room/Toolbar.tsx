@@ -17,6 +17,7 @@ import {
   ScreenShareStopIcon,
   SettingsIcon,
   ChatIcon,
+  HandIcon,
   LayoutIcon,
 } from '../components/icons';
 
@@ -32,6 +33,8 @@ interface Props {
   chatOpen: boolean;
   unreadCount: number;
   followSpeaker: boolean;
+  handRaised: boolean;
+  reactionsOpen: boolean;
   onToggleMic: () => void;
   onToggleCamera: () => void;
   onToggleScreenShare: () => void;
@@ -39,6 +42,8 @@ interface Props {
   onToggleSettings: () => void;
   onToggleChat: () => void;
   onToggleFollowSpeaker: () => void;
+  onToggleHand: () => void;
+  onToggleReactions: () => void;
   onLeave: () => void;
   children?: ReactNode;
 }
@@ -55,6 +60,8 @@ export function Toolbar({
   chatOpen,
   unreadCount,
   followSpeaker,
+  handRaised,
+  reactionsOpen,
   onToggleMic,
   onToggleCamera,
   onToggleScreenShare,
@@ -62,11 +69,13 @@ export function Toolbar({
   onToggleSettings,
   onToggleChat,
   onToggleFollowSpeaker,
+  onToggleHand,
+  onToggleReactions,
   onLeave,
   children,
 }: Props) {
   return (
-    <div className="pb-safe px-safe relative flex items-center justify-center gap-2 pt-3 max-[359px]:gap-1.5 sm:gap-3">
+    <div className="pb-safe px-safe relative flex flex-wrap items-center justify-center gap-2 pt-3 max-[359px]:gap-1.5 sm:gap-3">
       {children}
 
       <ControlButton
@@ -142,6 +151,25 @@ export function Toolbar({
           <LayoutIcon className="h-5 w-5" />
         </ControlButton>
       </span>
+
+      <ControlButton
+        label={handRaised ? 'Lower your hand' : 'Raise your hand'}
+        pressed={handRaised}
+        active={!handRaised}
+        accent={handRaised}
+        onClick={onToggleHand}
+      >
+        <HandIcon className="h-5 w-5" />
+      </ControlButton>
+
+      <ControlButton
+        label="Send a reaction"
+        pressed={reactionsOpen}
+        active
+        onClick={onToggleReactions}
+      >
+        <span className="text-lg leading-none">😀</span>
+      </ControlButton>
 
       <ControlButton
         label={`${chatOpen ? 'Hide' : 'Show'} chat`}

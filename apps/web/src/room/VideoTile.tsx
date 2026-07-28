@@ -28,6 +28,9 @@ interface Props {
   videoMuted: boolean;
   audioTrack: Track | undefined;
   audioMuted: boolean;
+  handRaised?: boolean;
+  /** Transient reaction emoji, already validated against the allow-list. */
+  reaction?: string | null;
   /** Screen shares must not be mirrored or cropped. */
   source?: Track.Source;
 }
@@ -40,6 +43,8 @@ export const VideoTile = memo(function VideoTile({
   videoMuted,
   audioTrack,
   audioMuted,
+  handRaised = false,
+  reaction = null,
   source = Track.Source.Camera,
 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -101,6 +106,28 @@ export const VideoTile = memo(function VideoTile({
       )}
 
       {!isLocal && <audio ref={audioRef} autoPlay />}
+
+      {handRaised && !isScreenShare && (
+        <span
+          className="absolute top-2 left-2 rounded-full bg-amber-500 px-2 py-1 text-sm leading-none shadow"
+          title="Hand raised"
+        >
+          <span aria-hidden="true">✋</span>
+          <span className="sr-only">Hand raised</span>
+        </span>
+      )}
+
+      {reaction && !isScreenShare && (
+        // Keyed on the emoji so a repeat of the same reaction still replays the
+        // animation rather than sitting there statically.
+        <span
+          key={reaction}
+          className="pointer-events-none absolute inset-x-0 bottom-10 flex animate-[reaction_4s_ease-out] justify-center text-4xl"
+          aria-hidden="true"
+        >
+          {reaction}
+        </span>
+      )}
 
       <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center gap-1.5 bg-gradient-to-t from-black/70 to-transparent px-3 pt-8 pb-2.5">
         {isMuted && !isScreenShare && (
