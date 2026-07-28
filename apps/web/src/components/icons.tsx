@@ -184,3 +184,22 @@ export function VideoOffAllIcon(props: IconProps) {
     </Icon>
   );
 }
+
+export function ChatIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <path d="M20 12a7.5 7.5 0 0 1-7.5 7.5H8l-4 2.5v-4.2A7.5 7.5 0 0 1 12.5 4.5 7.5 7.5 0 0 1 20 12Z" />
+    </Icon>
+  );
+}
+
+/** Grid vs stage layout. */
+export function LayoutIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="3" y="5" width="12" height="14" rx="2" />
+      <rect x="17" y="5" width="4" height="6" rx="1.2" />
+      <rect x="17" y="13" width="4" height="6" rx="1.2" />
+    </Icon>
+  );
+}

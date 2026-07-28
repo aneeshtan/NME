@@ -14,6 +14,8 @@ interface Props {
   state: DeviceState;
   audioOnly: boolean;
   onToggleAudioOnly: () => void;
+  warnWhenMuted: boolean;
+  onToggleWarnWhenMuted: () => void;
   onClose: () => void;
 }
 
@@ -23,7 +25,14 @@ const LABELS: Record<DeviceKind, string> = {
   audiooutput: 'Speaker',
 };
 
-export function DeviceMenu({ state, audioOnly, onToggleAudioOnly, onClose }: Props) {
+export function DeviceMenu({
+  state,
+  audioOnly,
+  onToggleAudioOnly,
+  warnWhenMuted,
+  onToggleWarnWhenMuted,
+  onClose,
+}: Props) {
   const panelRef = useRef<HTMLDivElement>(null);
 
   // Dismiss on Escape and on a click outside — expected of any popover, and
@@ -114,6 +123,28 @@ export function DeviceMenu({ state, audioOnly, onToggleAudioOnly, onClose }: Pro
           <span className="block text-sm font-medium">Audio only</span>
           <span className="mt-0.5 block text-xs leading-relaxed text-muted">
             Stop receiving video to save data and battery. Others can still see you.
+          </span>
+        </span>
+      </label>
+
+      {/*
+        Opt-in, and labelled with what it actually does. Detecting speech while
+        muted requires holding a second microphone stream open for as long as
+        the user believes they are muted — the audio never leaves the device,
+        but enabling that silently in a privacy-first app would be wrong.
+      */}
+      <label className="mt-3 flex cursor-pointer items-start gap-2.5">
+        <input
+          type="checkbox"
+          checked={warnWhenMuted}
+          onChange={onToggleWarnWhenMuted}
+          className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-accent)]"
+        />
+        <span>
+          <span className="block text-sm font-medium">Warn me when I speak while muted</span>
+          <span className="mt-0.5 block text-xs leading-relaxed text-muted">
+            Keeps the microphone active while muted so speech can be detected on
+            this device. Nothing is sent or recorded.
           </span>
         </span>
       </label>

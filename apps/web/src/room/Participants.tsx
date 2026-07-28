@@ -10,10 +10,12 @@ interface Props {
   room: Room;
   version: number;
   meetingUrl: string;
+  /** Sends a courtesy mute request; see lib/messaging.ts on why it is not enforced. */
+  onAskToMute: (identity: string) => void;
   onClose: () => void;
 }
 
-export function Participants({ room, version, meetingUrl, onClose }: Props) {
+export function Participants({ room, version, meetingUrl, onAskToMute, onClose }: Props) {
   void version; // Re-render trigger; state is read from the live Room below.
   const participants = [room.localParticipant, ...room.remoteParticipants.values()];
 
@@ -54,6 +56,21 @@ export function Participants({ room, version, meetingUrl, onClose }: Props) {
                 {participant.name || 'Guest'}
                 {isLocal && <span className="text-muted"> (You)</span>}
               </span>
+              {/*
+                Offered for anyone else who is unmuted — the hot-mic case that
+                derails a meeting. It asks; their client complies. There is no
+                way to force it, and pretending otherwise would be dishonest.
+              */}
+              {!isLocal && !isMuted && (
+                <button
+                  type="button"
+                  onClick={() => onAskToMute(participant.identity)}
+                  className="shrink-0 rounded-md px-2 py-1 text-xs font-medium text-muted hover:bg-elevated hover:text-fg"
+                  title={`Ask ${participant.name || 'this participant'} to mute`}
+                >
+                  Ask to mute
+                </button>
+              )}
               {isMuted && (
                 <MicOffIcon className="h-4 w-4 shrink-0 text-muted" aria-label="Muted" />
               )}

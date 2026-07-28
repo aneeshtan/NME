@@ -16,6 +16,8 @@ import {
   ScreenShareIcon,
   ScreenShareStopIcon,
   SettingsIcon,
+  ChatIcon,
+  LayoutIcon,
 } from '../components/icons';
 
 interface Props {
@@ -27,11 +29,16 @@ interface Props {
   participantCount: number;
   busy: boolean;
   settingsOpen: boolean;
+  chatOpen: boolean;
+  unreadCount: number;
+  followSpeaker: boolean;
   onToggleMic: () => void;
   onToggleCamera: () => void;
   onToggleScreenShare: () => void;
   onToggleParticipants: () => void;
   onToggleSettings: () => void;
+  onToggleChat: () => void;
+  onToggleFollowSpeaker: () => void;
   onLeave: () => void;
   children?: ReactNode;
 }
@@ -45,11 +52,16 @@ export function Toolbar({
   participantCount,
   busy,
   settingsOpen,
+  chatOpen,
+  unreadCount,
+  followSpeaker,
   onToggleMic,
   onToggleCamera,
   onToggleScreenShare,
   onToggleParticipants,
   onToggleSettings,
+  onToggleChat,
+  onToggleFollowSpeaker,
   onLeave,
   children,
 }: Props) {
@@ -111,6 +123,39 @@ export function Toolbar({
           <span className="absolute -top-2 -right-2.5 rounded-full bg-accent px-1.5 text-[0.625rem] leading-4 font-semibold text-white">
             {participantCount}
           </span>
+        </span>
+      </ControlButton>
+
+      {/*
+        Wrapped rather than given `hidden sm:inline-flex` directly: ControlButton
+        already sets `inline-flex`, and two equal-specificity display rules are
+        resolved by stylesheet order, so the `hidden` would be ignored.
+      */}
+      <span className="hidden sm:contents">
+        <ControlButton
+          label={followSpeaker ? 'Switch to grid view' : 'Switch to speaker view'}
+          pressed={followSpeaker}
+          active={!followSpeaker}
+          accent={followSpeaker}
+          onClick={onToggleFollowSpeaker}
+        >
+          <LayoutIcon className="h-5 w-5" />
+        </ControlButton>
+      </span>
+
+      <ControlButton
+        label={`${chatOpen ? 'Hide' : 'Show'} chat`}
+        pressed={chatOpen}
+        active
+        onClick={onToggleChat}
+      >
+        <span className="relative">
+          <ChatIcon className="h-5 w-5" />
+          {unreadCount > 0 && (
+            <span className="absolute -top-2 -right-2.5 rounded-full bg-accent px-1.5 text-[0.625rem] leading-4 font-semibold text-white">
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </span>
+          )}
         </span>
       </ControlButton>
 

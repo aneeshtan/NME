@@ -125,7 +125,9 @@ function Avatar({ name }: { name: string }) {
 
   return (
     <div
-      className="flex h-16 w-16 items-center justify-center rounded-full text-2xl font-semibold text-white sm:h-20 sm:w-20"
+      // shrink-0 keeps it a circle: it is a flex item, and in a short or narrow
+      // tile the default flex-shrink squashes it into an ellipse.
+      className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full text-2xl font-semibold text-white sm:h-20 sm:w-20"
       // A single CSS custom property is the one inline style in the app; hue is
       // a number derived from a hash, so nothing user-controlled reaches CSS.
       style={{ backgroundColor: `oklch(0.55 0.13 ${hue})` }}

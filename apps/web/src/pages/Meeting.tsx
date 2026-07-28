@@ -15,6 +15,9 @@ import { useDevices } from '../room/useDevices';
 import { useWakeLock } from '../room/useWakeLock';
 import { useAudioOnly } from '../room/useAudioOnly';
 import { DeviceMenu } from '../room/DeviceMenu';
+import { Chat } from '../room/Chat';
+import { useMessaging } from '../room/useMessaging';
+import { useMutedSpeechDetector } from '../room/useMutedSpeechDetector';
 import { buildMeetingUrl, readRoomKeyFromUrl } from '../lib/e2ee';
 import { loadDevicePrefs, saveDevicePrefs, saveDisplayName } from '../lib/storage';
 import { Logo } from '../components/Logo';
@@ -42,12 +45,30 @@ export default function Meeting({ roomId }: Props) {
   const [participantsOpen, setParticipantsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [audioOnly, setAudioOnly] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [pinnedIdentity, setPinnedIdentity] = useState<string | null>(null);
+  const [followSpeaker, setFollowSpeaker] = useState(false);
+  const [warnWhenMuted, setWarnWhenMuted] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const deviceState = useDevices(room);
+
+  // Someone asked us to mute: honoured locally rather than enforced remotely.
+  const handleMuteRequest = useCallback(() => {
+    void room?.localParticipant.setMicrophoneEnabled(false);
+    setPrefs((current) => ({ ...current, micEnabled: false }));
+  }, [room]);
+
+  const messaging = useMessaging(room, roomKey, chatOpen, handleMuteRequest);
   // Only hold the screen awake while actually in a call.
   useWakeLock(status === 'connected');
   useAudioOnly(room, audioOnly);
+
+  const micLive = room?.localParticipant.isMicrophoneEnabled ?? false;
+  const speakingWhileMuted = useMutedSpeechDetector(
+    warnWhenMuted && status === 'connected' && !micLive,
+    deviceState.selected.audioinput,
+  );
 
   useEffect(() => saveDevicePrefs(prefs), [prefs]);
 
@@ -216,6 +237,31 @@ export default function Meeting({ roomId }: Props) {
         </div>
       )}
 
+      {speakingWhileMuted && (
+        <div
+          role="status"
+          className="bg-amber-600 px-4 py-2 text-center text-sm font-semibold text-white"
+        >
+          Your microphone is off — nobody can hear you
+        </div>
+      )}
+
+      {messaging.muteRequestFrom && (
+        <div
+          role="status"
+          className="flex items-center justify-center gap-3 bg-elevated px-4 py-2 text-center text-sm"
+        >
+          <span>{messaging.muteRequestFrom} asked you to mute — your mic is now off.</span>
+          <button
+            type="button"
+            onClick={messaging.clearMuteRequest}
+            className="shrink-0 text-xs font-semibold text-accent underline"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {quality <= 2 && status === 'connected' && (
         // Shown only while degraded, and placed with the other status banners
         // rather than in the toolbar: a status glyph should never compete with
@@ -258,6 +304,9 @@ export default function Meeting({ roomId }: Props) {
             room={room}
             version={version}
             screenShare={screenShare ? { participant: screenShare.participant } : null}
+            pinnedIdentity={pinnedIdentity}
+            followSpeaker={followSpeaker}
+            onPin={setPinnedIdentity}
           />
         </main>
 
@@ -266,9 +315,12 @@ export default function Meeting({ roomId }: Props) {
             room={room}
             version={version}
             meetingUrl={meetingUrl}
+            onAskToMute={(identity) => void messaging.askToMute(identity)}
             onClose={() => setParticipantsOpen(false)}
           />
         )}
+
+        {chatOpen && <Chat messaging={messaging} onClose={() => setChatOpen(false)} />}
       </div>
 
       <footer className="shrink-0">
@@ -281,11 +333,20 @@ export default function Meeting({ roomId }: Props) {
           participantCount={participantCount}
           busy={busy}
           settingsOpen={settingsOpen}
+          chatOpen={chatOpen}
+          unreadCount={messaging.unread}
+          followSpeaker={followSpeaker}
           onToggleMic={() => void toggleMic()}
           onToggleCamera={() => void toggleCamera()}
           onToggleScreenShare={() => void toggleScreenShare()}
           onToggleParticipants={() => setParticipantsOpen((open) => !open)}
           onToggleSettings={() => setSettingsOpen((open) => !open)}
+          onToggleChat={() => setChatOpen((open) => !open)}
+          onToggleFollowSpeaker={() => {
+            setFollowSpeaker((on) => !on);
+            // Leaving a stale pin behind would make the toggle appear inert.
+            setPinnedIdentity(null);
+          }}
           onLeave={handleLeave}
         >
           {settingsOpen && (
@@ -293,6 +354,8 @@ export default function Meeting({ roomId }: Props) {
               state={deviceState}
               audioOnly={audioOnly}
               onToggleAudioOnly={() => setAudioOnly((on) => !on)}
+              warnWhenMuted={warnWhenMuted}
+              onToggleWarnWhenMuted={() => setWarnWhenMuted((on) => !on)}
               onClose={() => setSettingsOpen(false)}
             />
           )}
