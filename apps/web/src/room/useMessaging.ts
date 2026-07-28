@@ -6,7 +6,13 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { RoomEvent, type Participant, type Room } from 'livekit-client';
-import { deriveChatKey, openMessage, sealMessage, type ReactionEmoji } from '../lib/messaging';
+import {
+  deriveChatKey,
+  openMessage,
+  sealMessage,
+  type PollChoice,
+  type ReactionEmoji,
+} from '../lib/messaging';
 
 export interface ChatEntry {
   id: string;
@@ -23,7 +29,24 @@ export interface ActiveReaction {
   at: number;
 }
 
+export interface ActivePoll {
+  id: string;
+  question: string;
+  askedBy: string;
+  at: number;
+  /** One vote per identity; a later vote replaces an earlier one. */
+  votes: Map<string, PollChoice>;
+  myVote: PollChoice | null;
+}
+
 export interface Messaging {
+  /** Epoch ms the meeting is timeboxed to, or null. */
+  timeboxEndsAt: number | null;
+  setTimebox: (endsAt: number | null) => Promise<void>;
+  poll: ActivePoll | null;
+  startPoll: (question: string) => Promise<void>;
+  castVote: (choice: PollChoice) => Promise<void>;
+  closePoll: () => void;
   /** Reactions currently on screen, keyed by sender. */
   reactions: ActiveReaction[];
   /** Identities with a raised hand. */
@@ -59,6 +82,8 @@ export function useMessaging(
   const [reactions, setReactions] = useState<ActiveReaction[]>([]);
   const [raisedHands, setRaisedHands] = useState<Set<string>>(new Set());
   const [handRaised, setHandRaised] = useState(false);
+  const [timeboxEndsAt, setTimeboxEndsAt] = useState<number | null>(null);
+  const [poll, setPoll] = useState<ActivePoll | null>(null);
   const handRaisedRef = useRef(false);
   handRaisedRef.current = handRaised;
   const keyRef = useRef<CryptoKey | null>(null);
@@ -135,6 +160,34 @@ export function useMessaging(
           window.setTimeout(() => {
             setReactions((current) => current.filter((r) => r.at !== entry.at));
           }, REACTION_MS);
+          return;
+        }
+
+        if (message.type === 'timebox') {
+          setTimeboxEndsAt(message.endsAt);
+          return;
+        }
+
+        if (message.type === 'poll') {
+          setPoll({
+            id: message.id,
+            question: message.question,
+            askedBy: participant.name || 'Guest',
+            at: message.at,
+            votes: new Map(),
+            myVote: null,
+          });
+          return;
+        }
+
+        if (message.type === 'vote') {
+          setPoll((current) => {
+            if (!current || current.id !== message.pollId) return current;
+            const votes = new Map(current.votes);
+            // Keyed by identity, so a changed mind replaces rather than stacks.
+            votes.set(participant.identity, message.choice);
+            return { ...current, votes };
+          });
           return;
         }
 
@@ -285,10 +338,83 @@ export function useMessaging(
     };
   }, [room]);
 
+  const setTimebox = useCallback(
+    async (endsAt: number | null) => {
+      const key = keyRef.current;
+      if (!room || !key) return;
+      setTimeboxEndsAt(endsAt);
+      const envelope = await sealMessage(key, { type: 'timebox', at: Date.now(), endsAt });
+      await room.localParticipant.publishData(envelope, { reliable: true });
+    },
+    [room],
+  );
+
+  const startPoll = useCallback(
+    async (question: string) => {
+      const key = keyRef.current;
+      const trimmed = question.trim();
+      if (!room || !key || !trimmed) return;
+
+      const id = crypto.randomUUID();
+      setPoll({
+        id,
+        question: trimmed,
+        askedBy: room.localParticipant.name || 'You',
+        at: Date.now(),
+        votes: new Map(),
+        myVote: null,
+      });
+
+      const envelope = await sealMessage(key, {
+        type: 'poll',
+        at: Date.now(),
+        id,
+        question: trimmed,
+      });
+      await room.localParticipant.publishData(envelope, { reliable: true });
+    },
+    [room],
+  );
+
+  const castVote = useCallback(
+    async (choice: PollChoice) => {
+      const key = keyRef.current;
+      if (!room || !key) return;
+
+      // Recorded locally too: the sender's own message never returns from the
+      // SFU, so without this the caster would not see their own vote counted.
+      setPoll((current) => {
+        if (!current) return current;
+        const votes = new Map(current.votes);
+        votes.set(room.localParticipant.identity, choice);
+        return { ...current, votes, myVote: choice };
+      });
+
+      const pollId = poll?.id;
+      if (!pollId) return;
+      const envelope = await sealMessage(key, {
+        type: 'vote',
+        at: Date.now(),
+        pollId,
+        choice,
+      });
+      await room.localParticipant.publishData(envelope, { reliable: true });
+    },
+    [room, poll?.id],
+  );
+
+  const closePoll = useCallback(() => setPoll(null), []);
+
   const markRead = useCallback(() => setUnread(0), []);
   const clearMuteRequest = useCallback(() => setMuteRequestFrom(null), []);
 
   return {
+    timeboxEndsAt,
+    setTimebox,
+    poll,
+    startPoll,
+    castVote,
+    closePoll,
     reactions,
     raisedHands,
     handRaised,

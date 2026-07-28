@@ -20,6 +20,7 @@ interface Props {
   presenceSound: boolean;
   onTogglePresenceSound: () => void;
   blur: BackgroundBlur;
+  onSetTimebox: (endsAt: number | null) => void;
   onClose: () => void;
 }
 
@@ -38,6 +39,7 @@ export function DeviceMenu({
   presenceSound,
   onTogglePresenceSound,
   blur,
+  onSetTimebox,
   onClose,
 }: Props) {
   const panelRef = useRef<HTMLDivElement>(null);
@@ -167,6 +169,25 @@ export function DeviceMenu({
           </span>
         </label>
       )}
+
+      <div className="mt-4 border-t border-border pt-3.5">
+        <p className="text-sm font-medium">Timebox this meeting</p>
+        <p className="mt-0.5 text-xs leading-relaxed text-muted">
+          Everyone sees the same countdown.
+        </p>
+        <div className="mt-2 flex gap-1.5">
+          {[15, 30, 45, 60].map((minutes) => (
+            <button
+              key={minutes}
+              type="button"
+              onClick={() => onSetTimebox(Date.now() + minutes * 60_000)}
+              className="flex-1 rounded-lg border border-border px-2 py-1.5 text-xs font-medium hover:bg-surface"
+            >
+              {minutes}m
+            </button>
+          ))}
+        </div>
+      </div>
 
       <label className="mt-3 flex cursor-pointer items-start gap-2.5">
         <input

@@ -9,6 +9,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Messaging } from './useMessaging';
 import { CloseIcon } from '../components/icons';
+import { POLL_CHOICES, POLL_QUESTION_MAX } from '../lib/messaging';
 
 interface Props {
   messaging: Messaging;
@@ -17,6 +18,9 @@ interface Props {
 
 export function Chat({ messaging, onClose }: Props) {
   const [draft, setDraft] = useState('');
+  const [pollDraft, setPollDraft] = useState('');
+  const [composingPoll, setComposingPoll] = useState(false);
+  const { poll } = messaging;
   const listRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const { messages } = messaging;
@@ -48,6 +52,13 @@ export function Chat({ messaging, onClose }: Props) {
         <h2 className="text-sm font-semibold">Chat</h2>
         <button
           type="button"
+          onClick={() => setComposingPoll((open) => !open)}
+          className="ml-auto mr-1 rounded-md px-2 py-1 text-xs font-medium text-muted hover:bg-elevated hover:text-fg"
+        >
+          Poll
+        </button>
+        <button
+          type="button"
           onClick={onClose}
           aria-label="Close chat"
           className="tap-target -mr-2 inline-flex items-center justify-center rounded-full text-muted hover:text-fg"
@@ -55,6 +66,41 @@ export function Chat({ messaging, onClose }: Props) {
           <CloseIcon className="h-4.5 w-4.5" />
         </button>
       </header>
+
+      {composingPoll && (
+        <form
+          className="border-b border-border px-4 pb-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const question = pollDraft.trim();
+            if (!question) return;
+            void messaging.startPoll(question);
+            setPollDraft('');
+            setComposingPoll(false);
+          }}
+        >
+          <label htmlFor="pollQuestion" className="sr-only">
+            Poll question
+          </label>
+          <input
+            id="pollQuestion"
+            value={pollDraft}
+            onChange={(event) => setPollDraft(event.target.value)}
+            maxLength={POLL_QUESTION_MAX}
+            placeholder="Ask a yes / no question"
+            className="w-full rounded-lg border border-border bg-elevated px-3 py-2 text-sm outline-none focus:border-accent"
+          />
+          <button
+            type="submit"
+            disabled={!pollDraft.trim()}
+            className="mt-2 w-full rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
+          >
+            Ask everyone
+          </button>
+        </form>
+      )}
+
+      {poll && <PollCard messaging={messaging} />}
 
       <div
         ref={listRef}
@@ -112,5 +158,66 @@ export function Chat({ messaging, onClose }: Props) {
         </button>
       </form>
     </aside>
+  );
+}
+
+/**
+ * Live poll. Tallied entirely client-side from votes that arrived encrypted —
+ * the server sees ciphertext and never learns the question or the result.
+ */
+function PollCard({ messaging }: { messaging: Messaging }) {
+  const poll = messaging.poll;
+  if (!poll) return null;
+
+  const counts = { yes: 0, no: 0, abstain: 0 };
+  for (const choice of poll.votes.values()) counts[choice] += 1;
+  const total = poll.votes.size;
+
+  return (
+    <div className="border-b border-border px-4 pb-3">
+      <p className="text-xs font-semibold text-muted">{poll.askedBy} asked</p>
+      <p className="mt-1 text-sm leading-snug break-words">{poll.question}</p>
+
+      <div className="mt-2.5 flex gap-1.5">
+        {POLL_CHOICES.map((choice) => (
+          <button
+            key={choice}
+            type="button"
+            onClick={() => void messaging.castVote(choice)}
+            aria-pressed={poll.myVote === choice}
+            className={`flex-1 rounded-lg border px-2 py-1.5 text-xs font-medium capitalize ${
+              poll.myVote === choice
+                ? 'border-accent bg-accent text-white'
+                : 'border-border hover:bg-elevated'
+            }`}
+          >
+            {choice}
+          </button>
+        ))}
+      </div>
+
+      <div className="mt-2 space-y-1">
+        {POLL_CHOICES.map((choice) => (
+          <div key={choice} className="flex items-center gap-2 text-[0.6875rem] text-muted">
+            <span className="w-14 capitalize">{choice}</span>
+            <span className="h-1 flex-1 overflow-hidden rounded-full bg-surface">
+              <span
+                className="block h-full rounded-full bg-accent"
+                style={{ width: `${total ? (counts[choice] / total) * 100 : 0}%` }}
+              />
+            </span>
+            <span className="w-4 text-right">{counts[choice]}</span>
+          </div>
+        ))}
+      </div>
+
+      <button
+        type="button"
+        onClick={messaging.closePoll}
+        className="mt-2 text-[0.6875rem] font-medium text-muted underline"
+      >
+        Dismiss
+      </button>
+    </div>
   );
 }

@@ -11,6 +11,7 @@ import { Logo } from '../components/Logo';
 import { CameraIcon, CameraOffIcon, MicIcon, MicOffIcon, ShieldIcon } from '../components/icons';
 import { DISPLAY_NAME_MAX_LENGTH, loadDisplayName } from '../lib/storage';
 import { CopyLinkButton } from '../components/CopyLinkButton';
+import { useMicLevel } from './useMicLevel';
 import { ScheduleDialog } from '../components/ScheduleDialog';
 import { CalendarIcon } from '../components/icons';
 
@@ -41,6 +42,7 @@ export function PreJoin({
   const previewRef = useRef<HTMLVideoElement>(null);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [scheduling, setScheduling] = useState(false);
+  const micLevel = useMicLevel(micEnabled, '');
 
   // A returning user's name is already filled in, so send focus to the button
   // instead of making them dismiss a pre-selected field.
@@ -172,7 +174,34 @@ export function PreJoin({
             <ScheduleDialog meetingUrl={meetingUrl} onClose={() => setScheduling(false)} />
           )}
 
-          <label htmlFor="displayName" className="mt-6 block text-sm font-medium">
+          {/*
+            The camera can be checked by looking; the microphone cannot. A bar
+            that moves when you speak answers "can you hear me?" before the
+            meeting rather than thirty seconds into it.
+          */}
+          <div className="mt-4">
+            <div className="flex items-center justify-between text-xs text-muted">
+              <span>Microphone</span>
+              <span>{micEnabled ? 'Say something to test' : 'Muted'}</span>
+            </div>
+            <div
+              className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-surface"
+              role="meter"
+              aria-label="Microphone level"
+              aria-valuenow={Math.round(micLevel * 100)}
+              aria-valuemin={0}
+              aria-valuemax={100}
+            >
+              <div
+                className={`h-full rounded-full transition-[width] duration-75 ${
+                  micEnabled ? 'bg-accent' : 'bg-border'
+                }`}
+                style={{ width: `${Math.round(micLevel * 100)}%` }}
+              />
+            </div>
+          </div>
+
+          <label htmlFor="displayName" className="mt-5 block text-sm font-medium">
             Your name
           </label>
           <input

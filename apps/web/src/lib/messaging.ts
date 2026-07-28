@@ -50,7 +50,41 @@ export type HandState = {
   up: boolean;
 };
 
-export type RoomMessage = ChatMessage | MuteRequest | Reaction | HandState;
+/** Shared countdown, so the clock belongs to the meeting rather than one person. */
+export type Timebox = {
+  type: 'timebox';
+  at: number;
+  /** Epoch ms when the meeting should end, or null to clear. */
+  endsAt: number | null;
+};
+
+/** A quick vote. Choices are fixed so no peer-supplied option list is rendered. */
+export type Poll = {
+  type: 'poll';
+  at: number;
+  id: string;
+  question: string;
+};
+
+export type Vote = {
+  type: 'vote';
+  at: number;
+  pollId: string;
+  choice: PollChoice;
+};
+
+export const POLL_CHOICES = ['yes', 'no', 'abstain'] as const;
+export type PollChoice = (typeof POLL_CHOICES)[number];
+export const POLL_QUESTION_MAX = 140;
+
+export type RoomMessage =
+  | ChatMessage
+  | MuteRequest
+  | Reaction
+  | HandState
+  | Timebox
+  | Poll
+  | Vote;
 
 /**
  * Allow-list of reaction emoji.
@@ -179,6 +213,33 @@ function validate(value: unknown): RoomMessage | null {
 
   if (record.type === 'hand') {
     return typeof record.up === 'boolean' ? { type: 'hand', at, up: record.up } : null;
+  }
+
+  if (record.type === 'timebox') {
+    const endsAt = record.endsAt;
+    if (endsAt === null) return { type: 'timebox', at, endsAt: null };
+    // Bounded: an absurd end time from a peer would render a nonsense
+    // countdown, and this value drives a timer on every client.
+    if (typeof endsAt !== 'number' || !Number.isFinite(endsAt)) return null;
+    const maxEnd = Date.now() + 24 * 60 * 60 * 1000;
+    return endsAt > 0 && endsAt < maxEnd ? { type: 'timebox', at, endsAt } : null;
+  }
+
+  if (record.type === 'poll') {
+    if (typeof record.id !== 'string' || typeof record.question !== 'string') return null;
+    const question = record.question.slice(0, POLL_QUESTION_MAX).trim();
+    // The question is peer-supplied text rendered into every participant's UI.
+    // React escapes it; the cap stops a wall of text from taking over the panel.
+    return question && record.id.length <= 64
+      ? { type: 'poll', at, id: record.id.slice(0, 64), question }
+      : null;
+  }
+
+  if (record.type === 'vote') {
+    const choice = POLL_CHOICES.find((allowed) => allowed === record.choice);
+    return choice && typeof record.pollId === 'string'
+      ? { type: 'vote', at, pollId: record.pollId.slice(0, 64), choice }
+      : null;
   }
 
   return null;

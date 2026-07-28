@@ -15,6 +15,8 @@ interface Props {
   roomKey: string | null;
   version: number;
   meetingUrl: string;
+  /** Speaking-time shares, computed locally from events everyone receives. */
+  speaking: { identity: string; name: string; totalMs: number; share: number }[];
   /** Sends a courtesy mute request; see lib/messaging.ts on why it is not enforced. */
   onAskToMute: (identity: string) => void;
   onClose: () => void;
@@ -25,6 +27,7 @@ export function Participants({
   version,
   roomKey,
   meetingUrl,
+  speaking,
   onAskToMute,
   onClose,
 }: Props) {
@@ -104,6 +107,30 @@ export function Participants({
           );
         })}
       </ul>
+
+      {speaking.length > 0 && (
+        <div className="border-t border-border px-4 py-3">
+          <p className="text-[0.6875rem] font-medium text-muted">Speaking time</p>
+          <div className="mt-1.5 space-y-1">
+            {speaking.slice(0, 6).map((entry) => (
+              <div key={entry.identity} className="flex items-center gap-2 text-[0.6875rem]">
+                <span className="w-20 truncate text-muted">{entry.name}</span>
+                <span className="h-1 flex-1 overflow-hidden rounded-full bg-surface">
+                  <span
+                    className="block h-full rounded-full bg-accent"
+                    style={{ width: `${Math.round(entry.share * 100)}%` }}
+                  />
+                </span>
+                <span className="w-9 text-right text-muted">
+                  {entry.totalMs < 60000
+                    ? `${Math.round(entry.totalMs / 1000)}s`
+                    : `${Math.round(entry.totalMs / 60000)}m`}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <footer className="border-t border-border p-3">
         <div className="flex gap-2">

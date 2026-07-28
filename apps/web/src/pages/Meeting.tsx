@@ -21,6 +21,7 @@ import { useMutedSpeechDetector } from '../room/useMutedSpeechDetector';
 import { usePresenceAlerts } from '../room/usePresenceAlerts';
 import { useBackgroundBlur } from '../room/useBackgroundBlur';
 import { useKnocks } from '../room/useKnocks';
+import { useSpeakingTime } from '../room/useSpeakingTime';
 import { REACTIONS } from '../lib/messaging';
 import { buildShortMeetingUrl, deriveRoomId, readRoomKeyFromAnyUrl } from '../lib/e2ee';
 import { loadDevicePrefs, saveDevicePrefs, saveDisplayName, loadHostKey } from '../lib/storage';
@@ -82,6 +83,8 @@ export default function Meeting({ roomId: routeRoomId }: Props) {
     { hostKey, identity: room?.localParticipant.identity ?? null },
     status === 'connected',
   );
+
+  const speaking = useSpeakingTime(room, status === 'connected');
 
   const deviceState = useDevices(room);
 
@@ -352,6 +355,13 @@ export default function Meeting({ roomId: routeRoomId }: Props) {
         </div>
       )}
 
+      {messaging.timeboxEndsAt !== null && (
+        <TimeboxBanner
+          endsAt={messaging.timeboxEndsAt}
+          onClear={() => void messaging.setTimebox(null)}
+        />
+      )}
+
       {quality <= 2 && status === 'connected' && (
         // Shown only while degraded, and placed with the other status banners
         // rather than in the toolbar: a status glyph should never compete with
@@ -408,6 +418,7 @@ export default function Meeting({ roomId: routeRoomId }: Props) {
             version={version}
             roomKey={roomKey}
             meetingUrl={meetingUrl}
+            speaking={speaking}
             onAskToMute={(identity) => void messaging.askToMute(identity)}
             onClose={() => setParticipantsOpen(false)}
           />
@@ -479,6 +490,10 @@ export default function Meeting({ roomId: routeRoomId }: Props) {
               presenceSound={presenceSound}
               onTogglePresenceSound={() => setPresenceSound((on) => !on)}
               blur={blur}
+              onSetTimebox={(endsAt) => {
+                void messaging.setTimebox(endsAt);
+                setSettingsOpen(false);
+              }}
               onClose={() => setSettingsOpen(false)}
             />
           )}
@@ -511,6 +526,40 @@ function qualityLevel(quality: ConnectionQuality): number {
 /** getDisplayMedia is absent on iOS Safari; hide the control rather than fail. */
 function supportsScreenShare(): boolean {
   return typeof navigator.mediaDevices?.getDisplayMedia === 'function';
+}
+
+/**
+ * Shared countdown.
+ *
+ * The clock belongs to the meeting rather than to whoever set it: the end time
+ * is broadcast, so everyone sees the same number and nobody has to be the one
+ * watching it.
+ */
+function TimeboxBanner({ endsAt, onClear }: { endsAt: number; onClear: () => void }) {
+  const [remaining, setRemaining] = useState(endsAt - Date.now());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setRemaining(endsAt - Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [endsAt]);
+
+  const over = remaining <= 0;
+  const seconds = Math.max(0, Math.round(Math.abs(remaining) / 1000));
+  const label = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+
+  return (
+    <div
+      role="status"
+      className={`flex items-center justify-center gap-3 px-4 py-1.5 text-center text-xs font-medium ${
+        over ? 'bg-amber-600 text-white' : 'bg-elevated text-muted'
+      }`}
+    >
+      <span>{over ? `Over time by ${label}` : `${label} remaining`}</span>
+      <button type="button" onClick={onClear} className="shrink-0 underline">
+        Clear
+      </button>
+    </div>
+  );
 }
 
 function WaitingForApproval({ roomId }: { roomId: string }) {
