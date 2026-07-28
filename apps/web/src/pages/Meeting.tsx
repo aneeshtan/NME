@@ -58,7 +58,13 @@ export default function Meeting({ roomId }: Props) {
   const [busy, setBusy] = useState(false);
 
   const hostKey = useMemo(() => loadHostKey(roomId), [roomId]);
-  const knocks = useKnocks(roomId, hostKey, status === 'connected');
+  // Anyone in the meeting can admit, so the local identity is the credential
+  // for everyone who is not the creator. It stops working the moment they leave.
+  const knocks = useKnocks(
+    roomId,
+    { hostKey, identity: room?.localParticipant.identity ?? null },
+    status === 'connected',
+  );
 
   const deviceState = useDevices(room);
 

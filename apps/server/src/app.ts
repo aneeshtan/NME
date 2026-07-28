@@ -48,6 +48,7 @@ export async function buildApp(nonces: NonceStore, lobby: LobbyStore): Promise<F
           'res.iceServers',
           '*.credential',
           'req.headers["x-host-key"]',
+          'req.headers["x-participant-identity"]',
         ],
         censor: '[redacted]',
       },

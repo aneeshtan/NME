@@ -10,7 +10,7 @@
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import { config } from '../config.js';
 import { isValidRoomId } from '../lib/ids.js';
-import { issueJoinToken } from '../lib/livekit.js';
+import { issueJoinToken, isParticipantPresent } from '../lib/livekit.js';
 import { issueTurnCredentials } from '../lib/turn.js';
 import { KNOCK_TTL_SECONDS, type LobbyStore } from '../lib/lobby.js';
 import type { NonceStore } from '../lib/nonceStore.js';
@@ -34,13 +34,28 @@ export const knockRoutes: FastifyPluginAsync<Options> = async (
   const { nonces, lobby } = opts;
 
   /**
-   * Reads and verifies the host secret from the request.
+   * May this request admit people?
    *
-   * Sent as a header rather than a query parameter so it never lands in access
-   * logs, browser history, or a Referer.
+   * Anyone already in the meeting can, which is what people expect and what
+   * avoids the failure mode of a single host: if only the creator could admit,
+   * a meeting where they never arrive — or arrive from another browser — is one
+   * nobody can ever be let into.
+   *
+   * Two ways to qualify:
+   *  - the host secret, which also lets the creator enter their own lobby
+   *    before anyone else exists to admit them;
+   *  - being currently connected, per the SFU. This needs no new credential and
+   *    revokes itself on disconnect.
+   *
+   * Both travel as headers so neither reaches a URL, an access log, or a
+   * Referer.
    */
-  async function isHost(roomId: string, headerValue: unknown): Promise<boolean> {
-    return typeof headerValue === 'string' && (await lobby.verifyHost(roomId, headerValue));
+  async function canAdmit(roomId: string, headers: Record<string, unknown>): Promise<boolean> {
+    const hostKey = headers['x-host-key'];
+    if (typeof hostKey === 'string' && (await lobby.verifyHost(roomId, hostKey))) return true;
+
+    const identity = headers['x-participant-identity'];
+    return typeof identity === 'string' && (await isParticipantPresent(roomId, identity));
   }
 
   /** Host: who is waiting. */
@@ -56,10 +71,10 @@ export const knockRoutes: FastifyPluginAsync<Options> = async (
         return reply.code(404).send({ error: 'NOT_FOUND', message: 'Meeting not found.' });
       }
 
-      if (!(await isHost(roomId, request.headers['x-host-key']))) {
+      if (!(await canAdmit(roomId, request.headers))) {
         // 403 regardless of whether the room has a lobby at all, so this cannot
         // be used to discover which rooms are gated.
-        return reply.code(403).send({ error: 'FORBIDDEN', message: 'Not the meeting host.' });
+        return reply.code(403).send({ error: 'FORBIDDEN', message: 'Not in this meeting.' });
       }
 
       const knocks = await lobby.listKnocks(roomId);
@@ -105,8 +120,8 @@ export const knockRoutes: FastifyPluginAsync<Options> = async (
       if (!isValidRoomId(roomId)) {
         return reply.code(404).send({ error: 'NOT_FOUND', message: 'Meeting not found.' });
       }
-      if (!(await isHost(roomId, request.headers['x-host-key']))) {
-        return reply.code(403).send({ error: 'FORBIDDEN', message: 'Not the meeting host.' });
+      if (!(await canAdmit(roomId, request.headers))) {
+        return reply.code(403).send({ error: 'FORBIDDEN', message: 'Not in this meeting.' });
       }
 
       const knock = await lobby.getKnock(roomId, knockId);

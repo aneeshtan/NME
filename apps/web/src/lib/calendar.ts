@@ -122,11 +122,19 @@ export function downloadIcs(event: CalendarEvent): void {
   window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
-/** Next half-hour boundary — the most likely intended start time. */
+/**
+ * Next half-hour boundary — the most likely intended start time.
+ *
+ * The comparison is `>=`, not `>`. At exactly half past, `>` would round to the
+ * same :30 the clock has already reached and hand back a time in the past,
+ * pre-filling the dialog with a start that has already elapsed. The bug only
+ * appears during the thirtieth minute of an hour, which is precisely why it is
+ * worth pinning down rather than eyeballing.
+ */
 export function nextHalfHour(): Date {
   const date = new Date();
   date.setSeconds(0, 0);
-  date.setMinutes(date.getMinutes() > 30 ? 60 : 30);
+  date.setMinutes(date.getMinutes() >= 30 ? 60 : 30);
   return date;
 }
 

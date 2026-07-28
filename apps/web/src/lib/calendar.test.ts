@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import { buildIcs, nextHalfHour, toDateTimeLocal } from './calendar';
 
 const base = {
@@ -99,6 +99,25 @@ describe('buildIcs', () => {
 });
 
 describe('time helpers', () => {
+  test('nextHalfHour is always in the future, at every minute of the hour', () => {
+    // The failure only appears at exactly half past, where rounding to :30
+    // returns a time the clock has already passed. Checking one real "now"
+    // catches it once an hour; sweeping every minute catches it always.
+    vi.useFakeTimers();
+    try {
+      for (let minute = 0; minute < 60; minute++) {
+        const now = new Date(2026, 7, 3, 10, minute, 37, 0);
+        vi.setSystemTime(now);
+
+        const next = nextHalfHour();
+        expect(next.getTime(), `minute ${minute}`).toBeGreaterThan(now.getTime());
+        expect([0, 30], `minute ${minute}`).toContain(next.getMinutes());
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   test('nextHalfHour lands on :00 or :30 in the future', () => {
     const next = nextHalfHour();
     expect([0, 30]).toContain(next.getMinutes());

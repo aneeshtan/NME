@@ -99,3 +99,49 @@ export async function countParticipants(roomId: string): Promise<number> {
 export async function evictParticipant(roomId: string, identity: string): Promise<void> {
   await rooms.removeParticipant(roomId, identity);
 }
+
+/**
+ * Presence cache.
+ *
+ * Admission is authorised by "are you currently in this room", which means
+ * every participant polling for knocks would otherwise trigger a LiveKit call
+ * each time — N participants times every poll interval. Caching the roster for
+ * a couple of seconds collapses that to roughly one call per room per interval,
+ * regardless of how many people are looking.
+ */
+const presenceCache = new Map<string, { identities: Set<string>; expiresAt: number }>();
+const PRESENCE_TTL_MS = 2_000;
+/** Bounded so a flood of room ids cannot grow this without limit. */
+const PRESENCE_MAX_ROOMS = 5_000;
+
+/**
+ * Whether an identity is currently connected to the room.
+ *
+ * This is what replaces a password for admission rights: identities are 96 bits
+ * of randomness, known only to their owner and the server, and they stop being
+ * valid the moment that person disconnects. Someone who leaves the meeting
+ * therefore loses the ability to admit anyone, without any explicit revocation.
+ */
+export async function isParticipantPresent(roomId: string, identity: string): Promise<boolean> {
+  const now = Date.now();
+  const cached = presenceCache.get(roomId);
+
+  if (cached && cached.expiresAt > now) return cached.identities.has(identity);
+
+  try {
+    const participants = await rooms.listParticipants(roomId);
+    const identities = new Set(participants.map((participant) => participant.identity));
+
+    if (presenceCache.size >= PRESENCE_MAX_ROOMS) {
+      const oldest = presenceCache.keys().next();
+      if (!oldest.done) presenceCache.delete(oldest.value);
+    }
+    presenceCache.set(roomId, { identities, expiresAt: now + PRESENCE_TTL_MS });
+
+    return identities.has(identity);
+  } catch {
+    // Room gone or SFU unreachable: fail closed rather than admitting on a
+    // lookup we could not perform.
+    return false;
+  }
+}

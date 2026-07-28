@@ -159,18 +159,34 @@ export function claimKnock(
   });
 }
 
-/** Host: who is waiting. */
-export function listKnocks(roomId: string, hostKey: string): Promise<{ knocks: PendingKnock[] }> {
+/**
+ * Proof that the caller may admit people: either the creator's host secret, or
+ * an identity the SFU currently reports as connected.
+ */
+export interface AdmitAuth {
+  hostKey?: string | null | undefined;
+  identity?: string | null | undefined;
+}
+
+function admitHeaders(auth: AdmitAuth): Record<string, string> {
+  const headers: Record<string, string> = {};
+  if (auth.hostKey) headers['X-Host-Key'] = auth.hostKey;
+  if (auth.identity) headers['X-Participant-Identity'] = auth.identity;
+  return headers;
+}
+
+/** Who is waiting. Anyone in the meeting may ask. */
+export function listKnocks(roomId: string, auth: AdmitAuth): Promise<{ knocks: PendingKnock[] }> {
   return request<{ knocks: PendingKnock[] }>(`/rooms/${encodeURIComponent(roomId)}/knocks`, {
-    headers: { 'X-Host-Key': hostKey },
+    headers: admitHeaders(auth),
   });
 }
 
-/** Host: admit or deny a waiting joiner. */
+/** Admit or deny a waiting joiner. Anyone in the meeting may decide. */
 export function resolveKnock(
   roomId: string,
   knockId: string,
-  hostKey: string,
+  auth: AdmitAuth,
   admit: boolean,
 ): Promise<{ status: string }> {
   return request<{ status: string }>(
@@ -178,7 +194,7 @@ export function resolveKnock(
     {
       method: 'POST',
       body: JSON.stringify({ admit }),
-      headers: { 'X-Host-Key': hostKey },
+      headers: admitHeaders(auth),
     },
   );
 }

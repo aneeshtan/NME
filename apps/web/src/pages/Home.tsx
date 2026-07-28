@@ -106,8 +106,9 @@ export function Home() {
           <span>
             <span className="block text-sm font-medium">Require approval to join</span>
             <span className="mt-0.5 block text-xs leading-relaxed text-muted">
-              People who open the link wait until you let them in — so a
-              forwarded invitation cannot admit a stranger silently.
+              People who open the link wait until someone already in the meeting
+              lets them in, so a forwarded invitation cannot admit a stranger
+              silently.
             </span>
           </span>
         </label>

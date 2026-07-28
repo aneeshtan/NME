@@ -1,11 +1,14 @@
 /**
- * Host side of the lobby: who is waiting, and admitting or denying them.
+ * The in-meeting side of the lobby: who is waiting, and letting them in.
  *
- * Only runs for a participant holding the room's host secret, so ordinary
- * participants issue no requests at all.
+ * Everyone in the call polls and everyone can admit, which is what people
+ * expect from a meeting and what avoids the single-host failure mode — a
+ * meeting whose creator never arrives is otherwise one nobody can be let into.
+ * The server keeps this honest by checking the caller is actually connected,
+ * so the right to admit appears on joining and disappears on leaving.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { listKnocks, resolveKnock, type PendingKnock } from '../lib/api';
+import { listKnocks, resolveKnock, type AdmitAuth, type PendingKnock } from '../lib/api';
 
 /**
  * Poll interval. Frequent enough that someone waiting outside is not left
@@ -16,16 +19,16 @@ const POLL_MS = 3_000;
 
 export interface Knocks {
   pending: PendingKnock[];
-  isHost: boolean;
   admit: (knockId: string) => Promise<void>;
   deny: (knockId: string) => Promise<void>;
 }
 
-export function useKnocks(roomId: string, hostKey: string | null, active: boolean): Knocks {
+export function useKnocks(roomId: string, auth: AdmitAuth, active: boolean): Knocks {
   const [pending, setPending] = useState<PendingKnock[]>([]);
+  const { hostKey, identity } = auth;
 
   useEffect(() => {
-    if (!hostKey || !active) {
+    if ((!hostKey && !identity) || !active) {
       setPending([]);
       return;
     }
@@ -35,7 +38,7 @@ export function useKnocks(roomId: string, hostKey: string | null, active: boolea
 
     const poll = async () => {
       try {
-        const { knocks } = await listKnocks(roomId, hostKey);
+        const { knocks } = await listKnocks(roomId, { hostKey, identity });
         if (!cancelled) setPending(knocks);
       } catch {
         // A transient failure just means the next tick tries again; surfacing
@@ -49,26 +52,25 @@ export function useKnocks(roomId: string, hostKey: string | null, active: boolea
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [roomId, hostKey, active]);
+  }, [roomId, hostKey, identity, active]);
 
   const resolve = useCallback(
     async (knockId: string, admit: boolean) => {
-      if (!hostKey) return;
+      if (!hostKey && !identity) return;
       // Removed optimistically: the host has decided, and leaving the row up
       // until the next poll invites a second click on the same person.
       setPending((current) => current.filter((knock) => knock.id !== knockId));
       try {
-        await resolveKnock(roomId, knockId, hostKey, admit);
+        await resolveKnock(roomId, knockId, { hostKey, identity }, admit);
       } catch {
         // The next poll restores it if the call did not land.
       }
     },
-    [roomId, hostKey],
+    [roomId, hostKey, identity],
   );
 
   return {
     pending,
-    isHost: Boolean(hostKey),
     admit: (knockId: string) => resolve(knockId, true),
     deny: (knockId: string) => resolve(knockId, false),
   };
