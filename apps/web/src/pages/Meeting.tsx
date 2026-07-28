@@ -5,16 +5,21 @@
  * only when someone actually opens a meeting. The home page never pays for them.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ConnectionQuality } from 'livekit-client';
 import { PreJoin } from '../room/PreJoin';
 import { Grid } from '../room/Grid';
 import { Toolbar } from '../room/Toolbar';
 import { Participants } from '../room/Participants';
 import { useRoom, screenShareTrack } from '../room/useRoom';
+import { useDevices } from '../room/useDevices';
+import { useWakeLock } from '../room/useWakeLock';
+import { useAudioOnly } from '../room/useAudioOnly';
+import { DeviceMenu } from '../room/DeviceMenu';
 import { buildMeetingUrl, readRoomKeyFromUrl } from '../lib/e2ee';
 import { loadDevicePrefs, saveDevicePrefs, saveDisplayName } from '../lib/storage';
 import { Logo } from '../components/Logo';
 import { CopyLinkButton } from '../components/CopyLinkButton';
-import { ShieldIcon } from '../components/icons';
+import { ShieldIcon, SignalIcon } from '../components/icons';
 import { navigate } from '../lib/router';
 
 interface Props {
@@ -35,7 +40,14 @@ export default function Meeting({ roomId }: Props) {
   const [prefs, setPrefs] = useState(loadDevicePrefs);
   const [joined, setJoined] = useState(false);
   const [participantsOpen, setParticipantsOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [audioOnly, setAudioOnly] = useState(false);
   const [busy, setBusy] = useState(false);
+
+  const deviceState = useDevices(room);
+  // Only hold the screen awake while actually in a call.
+  useWakeLock(status === 'connected');
+  useAudioOnly(room, audioOnly);
 
   useEffect(() => saveDevicePrefs(prefs), [prefs]);
 
@@ -191,6 +203,7 @@ export default function Meeting({ roomId }: Props) {
 
   const screenShare = screenShareTrack(room);
   const participantCount = room.remoteParticipants.size + 1;
+  const quality = qualityLevel(room.localParticipant.connectionQuality);
 
   return (
     <div className="flex h-full flex-col">
@@ -200,6 +213,25 @@ export default function Meeting({ roomId }: Props) {
           className="bg-accent px-4 py-2 text-center text-sm font-medium text-white"
         >
           Reconnecting…
+        </div>
+      )}
+
+      {quality <= 2 && status === 'connected' && (
+        // Shown only while degraded, and placed with the other status banners
+        // rather than in the toolbar: a status glyph should never compete with
+        // tap targets for width on a narrow phone.
+        <div
+          role="status"
+          className={`flex items-center justify-center gap-1.5 px-4 py-1.5 text-center text-xs font-medium text-white ${
+            quality === 0 ? 'bg-danger' : 'bg-amber-600'
+          }`}
+        >
+          <SignalIcon level={quality} className="h-3.5 w-3.5 shrink-0" />
+          <span>
+            {quality === 0
+              ? 'Connection lost — trying to reconnect'
+              : 'Weak connection — video quality reduced'}
+          </span>
         </div>
       )}
 
@@ -248,15 +280,46 @@ export default function Meeting({ roomId }: Props) {
           participantsOpen={participantsOpen}
           participantCount={participantCount}
           busy={busy}
+          settingsOpen={settingsOpen}
           onToggleMic={() => void toggleMic()}
           onToggleCamera={() => void toggleCamera()}
           onToggleScreenShare={() => void toggleScreenShare()}
           onToggleParticipants={() => setParticipantsOpen((open) => !open)}
+          onToggleSettings={() => setSettingsOpen((open) => !open)}
           onLeave={handleLeave}
-        />
+        >
+          {settingsOpen && (
+            <DeviceMenu
+              state={deviceState}
+              audioOnly={audioOnly}
+              onToggleAudioOnly={() => setAudioOnly((on) => !on)}
+              onClose={() => setSettingsOpen(false)}
+            />
+          )}
+        </Toolbar>
       </footer>
     </div>
   );
+}
+
+/**
+ * Maps LiveKit's quality enum onto signal bars. Unknown is treated as good:
+ * quality is not reported until a few seconds of stats exist, and flashing a
+ * warning during every join would train people to ignore it.
+ */
+function qualityLevel(quality: ConnectionQuality): number {
+  switch (quality) {
+    case ConnectionQuality.Excellent:
+      return 4;
+    case ConnectionQuality.Good:
+      return 3;
+    case ConnectionQuality.Poor:
+      return 2;
+    case ConnectionQuality.Lost:
+      return 0;
+    default:
+      return 3;
+  }
 }
 
 /** getDisplayMedia is absent on iOS Safari; hide the control rather than fail. */

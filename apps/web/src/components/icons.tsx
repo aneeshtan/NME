@@ -153,3 +153,34 @@ export function ArrowRightIcon(props: IconProps) {
     </Icon>
   );
 }
+
+export function SettingsIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </Icon>
+  );
+}
+
+/** Signal bars. `level` 0-3; unfilled bars render at low opacity. */
+export function SignalIcon({ level = 3, ...props }: IconProps & { level?: number }) {
+  return (
+    <Icon {...props} strokeWidth={2} strokeLinecap="round">
+      <path d="M5 18v-2" opacity={level >= 1 ? 1 : 0.25} />
+      <path d="M10 18v-6" opacity={level >= 2 ? 1 : 0.25} />
+      <path d="M15 18v-9" opacity={level >= 3 ? 1 : 0.25} />
+      <path d="M20 18V5" opacity={level >= 4 ? 1 : 0.25} />
+    </Icon>
+  );
+}
+
+export function VideoOffAllIcon(props: IconProps) {
+  return (
+    <Icon {...props}>
+      <rect x="3" y="6" width="12" height="12" rx="2.5" />
+      <path d="m15 11 5-3v8l-5-3z" />
+      <path d="m3 3 18 18" />
+    </Icon>
+  );
+}

@@ -15,6 +15,7 @@ import {
   PeopleIcon,
   ScreenShareIcon,
   ScreenShareStopIcon,
+  SettingsIcon,
 } from '../components/icons';
 
 interface Props {
@@ -25,11 +26,14 @@ interface Props {
   participantsOpen: boolean;
   participantCount: number;
   busy: boolean;
+  settingsOpen: boolean;
   onToggleMic: () => void;
   onToggleCamera: () => void;
   onToggleScreenShare: () => void;
   onToggleParticipants: () => void;
+  onToggleSettings: () => void;
   onLeave: () => void;
+  children?: ReactNode;
 }
 
 export function Toolbar({
@@ -40,14 +44,19 @@ export function Toolbar({
   participantsOpen,
   participantCount,
   busy,
+  settingsOpen,
   onToggleMic,
   onToggleCamera,
   onToggleScreenShare,
   onToggleParticipants,
+  onToggleSettings,
   onLeave,
+  children,
 }: Props) {
   return (
-    <div className="pb-safe px-safe flex items-center justify-center gap-2 pt-3 sm:gap-3">
+    <div className="pb-safe px-safe relative flex items-center justify-center gap-2 pt-3 max-[359px]:gap-1.5 sm:gap-3">
+      {children}
+
       <ControlButton
         label={micEnabled ? 'Turn off microphone' : 'Turn on microphone'}
         pressed={!micEnabled}
@@ -105,11 +114,20 @@ export function Toolbar({
         </span>
       </ControlButton>
 
+      <ControlButton
+        label="Audio and video settings"
+        pressed={settingsOpen}
+        active
+        onClick={onToggleSettings}
+      >
+        <SettingsIcon className="h-5 w-5" />
+      </ControlButton>
+
       <button
         type="button"
         onClick={onLeave}
         aria-label="Leave meeting"
-        className="tap-target ml-1 inline-flex items-center justify-center rounded-full bg-danger px-6 text-white transition-colors duration-150 hover:bg-danger-hover focus-visible:outline-2"
+        className="tap-target ml-1 inline-flex items-center justify-center rounded-full bg-danger px-6 text-white transition-colors duration-150 hover:bg-danger-hover focus-visible:outline-2 max-[359px]:ml-0 max-[359px]:px-4"
       >
         <LeaveIcon className="h-5 w-5" />
       </button>
