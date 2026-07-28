@@ -29,11 +29,12 @@ const BLUR_PX = 10;
  */
 const SEGMENT_FPS = 15;
 
+/** The model's fixed input resolution. */
+const MODEL_SIZE = 256;
+
 type Segmenter = {
-  segmentPeople: (
-    input: HTMLVideoElement,
-    config?: { flipHorizontal?: boolean },
-  ) => Promise<Array<{ mask: { toCanvasImageSource: () => Promise<CanvasImageSource> } }>>;
+  /** Renders a person-alpha mask into `target`. */
+  segment: (input: HTMLVideoElement, target: HTMLCanvasElement) => Promise<void>;
   dispose: () => void;
 };
 
@@ -45,7 +46,8 @@ export class BackgroundBlurProcessor implements TrackProcessor<Track.Kind.Video>
   private canvas?: HTMLCanvasElement | undefined;
   private context?: CanvasRenderingContext2D | undefined;
   private segmenter?: Segmenter | undefined;
-  private maskSource?: CanvasImageSource | undefined;
+  private maskCanvas?: HTMLCanvasElement | undefined;
+  private hasMask = false;
   private frame = 0;
   private lastSegmentAt = 0;
   private stopped = false;
@@ -71,6 +73,10 @@ export class BackgroundBlurProcessor implements TrackProcessor<Track.Kind.Video>
     this.context =
       this.canvas.getContext('2d', { alpha: false, desynchronized: true }) ?? undefined;
 
+    this.maskCanvas = document.createElement('canvas');
+    this.maskCanvas.width = MODEL_SIZE;
+    this.maskCanvas.height = MODEL_SIZE;
+
     this.segmenter = await createSegmenter();
 
     // captureStream at 0 means "produce a frame whenever the canvas is drawn",
@@ -93,7 +99,8 @@ export class BackgroundBlurProcessor implements TrackProcessor<Track.Kind.Video>
 
     this.segmenter?.dispose();
     this.segmenter = undefined;
-    this.maskSource = undefined;
+    this.maskCanvas = undefined;
+    this.hasMask = false;
 
     this.processedTrack?.stop();
     delete this.processedTrack;
@@ -119,7 +126,7 @@ export class BackgroundBlurProcessor implements TrackProcessor<Track.Kind.Video>
 
     const { width, height } = canvas;
 
-    if (this.maskSource) {
+    if (this.hasMask && this.maskCanvas) {
       // 1. Person, drawn sharp.
       context.globalCompositeOperation = 'copy';
       context.filter = 'none';
@@ -127,7 +134,7 @@ export class BackgroundBlurProcessor implements TrackProcessor<Track.Kind.Video>
 
       // 2. Keep only the pixels the mask marks as person.
       context.globalCompositeOperation = 'destination-in';
-      context.drawImage(this.maskSource, 0, 0, width, height);
+      context.drawImage(this.maskCanvas, 0, 0, width, height);
 
       // 3. Blurred frame behind them. `destination-over` paints underneath what
       //    is already there, so the sharp cut-out survives.
@@ -156,15 +163,12 @@ export class BackgroundBlurProcessor implements TrackProcessor<Track.Kind.Video>
     if (now - this.lastSegmentAt < 1000 / SEGMENT_FPS) return;
     this.lastSegmentAt = now;
 
-    const { segmenter, source } = this;
-    if (!segmenter || !source) return;
+    const { segmenter, source, maskCanvas } = this;
+    if (!segmenter || !source || !maskCanvas) return;
 
     try {
-      const people = await segmenter.segmentPeople(source, { flipHorizontal: false });
-      const mask = people[0]?.mask;
-      if (mask && !this.stopped) {
-        this.maskSource = await mask.toCanvasImageSource();
-      }
+      await segmenter.segment(source, maskCanvas);
+      if (!this.stopped) this.hasMask = true;
     } catch {
       // A failed inference simply leaves the previous mask in place.
     }
@@ -172,31 +176,67 @@ export class BackgroundBlurProcessor implements TrackProcessor<Track.Kind.Video>
 }
 
 /**
- * Loads the runtime and model.
+ * Loads the runtime and drives the segmentation model directly.
  *
- * Model files are served from our own origin: the library's default points at
- * a Google CDN, which the app's `default-src 'none'` CSP blocks outright — and
- * relaxing the policy to allow a third-party fetch would be a much worse trade
- * than hosting 250 KB ourselves.
+ * The obvious choice is @tensorflow-models/body-segmentation, and this used it
+ * at first. It was dropped because it depends on rimraf -> glob -> minimatch ->
+ * brace-expansion, four packages carrying an unpatched DoS advisory, none of
+ * which a browser build has any use for. The wrapper adds resize, normalise and
+ * argmax around a graph model — about forty lines — so calling the model
+ * directly removes the advisories and 57 KB rather than suppressing a warning.
+ *
+ * Model files are served from our own origin: the usual CDN default is blocked
+ * outright by `default-src 'none'`, and loosening the CSP for a third-party
+ * fetch would be a far worse trade than hosting 325 KB ourselves.
  */
 async function createSegmenter(): Promise<Segmenter> {
-  const [tf, bodySegmentation] = await Promise.all([
+  const [tf] = await Promise.all([
     import('@tensorflow/tfjs-core'),
-    import('@tensorflow-models/body-segmentation'),
     import('@tensorflow/tfjs-backend-webgl'),
   ]);
+  const { loadGraphModel } = await import('@tensorflow/tfjs-converter');
 
   await tf.setBackend('webgl');
   await tf.ready();
 
-  const segmenter = await bodySegmentation.createSegmenter(
-    bodySegmentation.SupportedModels.MediaPipeSelfieSegmentation,
-    {
-      runtime: 'tfjs',
-      modelType: 'general',
-      modelUrl: '/models/selfie-segmentation/model.json',
-    },
-  );
+  const model = await loadGraphModel('/models/selfie-segmentation/model.json');
 
-  return segmenter as unknown as Segmenter;
+  return {
+    async segment(input, target) {
+      // Every intermediate is disposed: without this, WebGL textures accumulate
+      // each frame and the tab runs out of GPU memory within minutes.
+      const alpha = tf.tidy(() => {
+        const frame = tf.browser.fromPixels(input);
+        const resized = tf.image.resizeBilinear(frame, [MODEL_SIZE, MODEL_SIZE]);
+        const batch = tf.expandDims(tf.div(resized, 255), 0);
+
+        const output = model.execute(batch) as import('@tensorflow/tfjs-core').Tensor4D;
+
+        // Two channels: background and person. Softmax turns the pair into
+        // probabilities; channel 1 is the person's alpha.
+        const probabilities = tf.softmax(output, 3);
+        const person = tf.slice4d(probabilities, [0, 0, 0, 1], [1, MODEL_SIZE, MODEL_SIZE, 1]);
+
+        // RGBA where colour is irrelevant and alpha carries the mask — the
+        // canvas `destination-in` step reads only alpha.
+        const white = tf.onesLike(person);
+        const rgba = tf.concat([white, white, white, person], 3);
+        // Drop the batch dimension: toPixels wants [height, width, channels].
+        return tf.reshape<import('@tensorflow/tfjs-core').Rank.R3>(rgba, [
+          MODEL_SIZE,
+          MODEL_SIZE,
+          4,
+        ]);
+      });
+
+      try {
+        await tf.browser.toPixels(alpha, target);
+      } finally {
+        alpha.dispose();
+      }
+    },
+    dispose() {
+      model.dispose();
+    },
+  };
 }

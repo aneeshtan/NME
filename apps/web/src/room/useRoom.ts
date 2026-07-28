@@ -10,11 +10,14 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { ConnectionState, Room, RoomEvent, Track } from 'livekit-client';
 import { connectToRoom, E2EEUnsupportedError, ROOM_UPDATE_EVENTS } from './connect';
-import { getConfig, joinRoom, ApiError } from '../lib/api';
+import { getConfig, joinRoom, claimKnock, ApiError } from '../lib/api';
+import { loadHostKey } from '../lib/storage';
 
 export type RoomStatus =
   | 'idle'
   | 'connecting'
+  /** Knocked on a lobby room; waiting for someone inside to admit us. */
+  | 'waiting'
   /** Direct media failed; establishing a relayed connection instead. */
   | 'relaying'
   | 'connected'
@@ -30,6 +33,11 @@ export type RoomStatus =
  * that will actually work. Long enough to absorb a slow mobile handshake.
  */
 const DIRECT_CONNECT_TIMEOUT_MS = 8_000;
+
+/** How often a waiting joiner asks whether they have been admitted. */
+const KNOCK_POLL_MS = 2_000;
+/** Give up after this long rather than waiting on a host who never returns. */
+const KNOCK_TIMEOUT_MS = 5 * 60_000;
 
 export interface RoomError {
   code: string;
@@ -94,10 +102,41 @@ export function useRoom(roomId: string, roomKey: string | null): UseRoomResult {
       setError(null);
 
       try {
-        const [config, credentials] = await Promise.all([
+        const [config, initial] = await Promise.all([
           getConfig(),
-          joinRoom(roomId, displayName),
+          // A stored host key admits the creator without knocking on their own
+          // meeting; everyone else waits.
+          joinRoom(roomId, displayName, {
+            ...(loadHostKey(roomId) ? { hostKey: loadHostKey(roomId)! } : {}),
+          }),
         ]);
+
+        // Lobby room: no token yet. Poll until the host decides.
+        let credentials: Awaited<ReturnType<typeof claimKnock>> | typeof initial = initial;
+        if ('status' in initial && initial.status === 'waiting') {
+          setStatus('waiting');
+          credentials = await awaitAdmission(roomId, initial.knockId);
+        }
+
+        if ('status' in credentials && credentials.status === 'denied') {
+          setError({
+            code: 'DENIED',
+            message: 'The host did not let you in.',
+            recoverable: false,
+          });
+          setStatus('failed');
+          return;
+        }
+        if (!('token' in credentials)) {
+          setError({
+            code: 'NO_ANSWER',
+            message: 'Nobody answered your request to join. Try again later.',
+            recoverable: true,
+          });
+          setStatus('failed');
+          return;
+        }
+        setStatus('connecting');
 
         let connected: Room;
         try {
@@ -122,9 +161,12 @@ export function useRoom(roomId: string, roomKey: string | null): UseRoomResult {
           // identity was already burned as a replay nonce the moment LiveKit
           // registered the participant, so reusing it would trip this app's own
           // replay defence and get the retry evicted.
-          const relayCredentials = await joinRoom(roomId, displayName, { relay: true });
+          const relayCredentials = await joinRoom(roomId, displayName, {
+            relay: true,
+            ...(loadHostKey(roomId) ? { hostKey: loadHostKey(roomId)! } : {}),
+          });
 
-          if (!relayCredentials.iceServers?.length) {
+          if (!('token' in relayCredentials) || !relayCredentials.iceServers?.length) {
             // No relay is configured on this deployment, so there is nothing
             // further to try. Surface the original failure, which describes the
             // actual problem.
@@ -240,6 +282,27 @@ function useRoomVersion(room: Room | null): number {
  * E2EE support and API-level rejections (room full, invalid name, rate limit)
  * are deterministic — they will fail the same way on a second attempt.
  */
+/**
+ * Polls until the host admits, denies, or the joiner gives up.
+ *
+ * Polling is the honest option here: pushing a verdict would require the
+ * waiting client to already hold a connection into the room, which is exactly
+ * what the lobby is withholding.
+ */
+async function awaitAdmission(
+  roomId: string,
+  knockId: string,
+): Promise<Awaited<ReturnType<typeof claimKnock>>> {
+  const deadline = Date.now() + KNOCK_TIMEOUT_MS;
+
+  for (;;) {
+    const verdict = await claimKnock(roomId, knockId);
+    if (verdict.status !== 'waiting') return verdict;
+    if (Date.now() > deadline) return { status: 'waiting' };
+    await new Promise((resolve) => setTimeout(resolve, KNOCK_POLL_MS));
+  }
+}
+
 function isMediaPathFailure(cause: unknown): boolean {
   if (cause instanceof E2EEUnsupportedError) return false;
   if (cause instanceof ApiError) return false;

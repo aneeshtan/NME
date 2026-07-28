@@ -4,17 +4,19 @@
 import { useCallback, useRef, useState } from 'react';
 import { Logo } from '../components/Logo';
 import { ArrowRightIcon, ShieldIcon } from '../components/icons';
-import { createRoom, ApiError } from '../lib/api';
+import { createRoomWithLobby, ApiError } from '../lib/api';
 import { buildMeetingUrl, generateRoomKey } from '../lib/e2ee';
 import { parseMeetingInput } from '../lib/room';
 import { copyText } from '../components/CopyLinkButton';
 import { navigate } from '../lib/router';
+import { saveHostKey } from '../lib/storage';
 
 export function Home() {
   const [creating, setCreating] = useState(false);
   const [joinValue, setJoinValue] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [requireApproval, setRequireApproval] = useState(false);
   const joinRef = useRef<HTMLInputElement>(null);
 
   const handleCreate = useCallback(async () => {
@@ -26,7 +28,11 @@ export function Home() {
       // The key is generated here, in the browser, and never sent anywhere.
       // The server learns the room ID; only people holding the link learn the key.
       const key = generateRoomKey();
-      const { roomId } = await createRoom();
+      const { roomId, hostKey } = await createRoomWithLobby(requireApproval);
+
+      // Stored, never placed in the URL: the link gets forwarded, and a host
+      // secret riding along with it would make the lobby meaningless.
+      if (hostKey) saveHostKey(roomId, hostKey);
       const url = buildMeetingUrl(window.location.origin, roomId, key);
 
       // Copy before navigating: the clipboard write must happen inside the
@@ -41,7 +47,7 @@ export function Home() {
       );
       setCreating(false);
     }
-  }, [creating]);
+  }, [creating, requireApproval]);
 
   const handleJoin = useCallback(
     (event: React.FormEvent) => {
@@ -89,6 +95,22 @@ export function Home() {
         >
           {creating ? 'Creating meeting…' : 'New meeting'}
         </button>
+
+        <label className="mt-3 flex cursor-pointer items-start gap-2.5">
+          <input
+            type="checkbox"
+            checked={requireApproval}
+            onChange={(event) => setRequireApproval(event.target.checked)}
+            className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-accent)]"
+          />
+          <span>
+            <span className="block text-sm font-medium">Require approval to join</span>
+            <span className="mt-0.5 block text-xs leading-relaxed text-muted">
+              People who open the link wait until you let them in — so a
+              forwarded invitation cannot admit a stranger silently.
+            </span>
+          </span>
+        </label>
 
         <div className="my-6 flex items-center gap-3" aria-hidden="true">
           <span className="h-px flex-1 bg-border" />

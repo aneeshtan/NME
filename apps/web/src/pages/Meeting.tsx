@@ -20,9 +20,10 @@ import { useMessaging } from '../room/useMessaging';
 import { useMutedSpeechDetector } from '../room/useMutedSpeechDetector';
 import { usePresenceAlerts } from '../room/usePresenceAlerts';
 import { useBackgroundBlur } from '../room/useBackgroundBlur';
+import { useKnocks } from '../room/useKnocks';
 import { REACTIONS } from '../lib/messaging';
 import { buildMeetingUrl, readRoomKeyFromUrl } from '../lib/e2ee';
-import { loadDevicePrefs, saveDevicePrefs, saveDisplayName } from '../lib/storage';
+import { loadDevicePrefs, saveDevicePrefs, saveDisplayName, loadHostKey } from '../lib/storage';
 import { Logo } from '../components/Logo';
 import { CopyLinkButton } from '../components/CopyLinkButton';
 import { ShieldIcon, SignalIcon } from '../components/icons';
@@ -55,6 +56,9 @@ export default function Meeting({ roomId }: Props) {
   const [reactionsOpen, setReactionsOpen] = useState(false);
   const [presenceSound, setPresenceSound] = useState(true);
   const [busy, setBusy] = useState(false);
+
+  const hostKey = useMemo(() => loadHostKey(roomId), [roomId]);
+  const knocks = useKnocks(roomId, hostKey, status === 'connected');
 
   const deviceState = useDevices(room);
 
@@ -226,6 +230,10 @@ export default function Meeting({ roomId }: Props) {
     );
   }
 
+  if (status === 'waiting') {
+    return <WaitingForApproval roomId={roomId} />;
+  }
+
   if (!room || status === 'connecting' || status === 'relaying') {
     return <Connecting relaying={status === 'relaying'} />;
   }
@@ -242,6 +250,36 @@ export default function Meeting({ roomId }: Props) {
           className="bg-accent px-4 py-2 text-center text-sm font-medium text-white"
         >
           Reconnecting…
+        </div>
+      )}
+
+      {knocks.pending.length > 0 && (
+        <div className="absolute inset-x-0 top-2 z-40 flex flex-col items-center gap-2 px-3">
+          {knocks.pending.map((knock) => (
+            <div
+              key={knock.id}
+              role="alert"
+              className="flex w-full max-w-md items-center gap-3 rounded-xl border border-border bg-elevated px-3 py-2.5 shadow-xl"
+            >
+              <span className="min-w-0 flex-1 truncate text-sm">
+                <span className="font-semibold">{knock.displayName}</span> wants to join
+              </span>
+              <button
+                type="button"
+                onClick={() => void knocks.deny(knock.id)}
+                className="shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium text-muted hover:bg-surface hover:text-fg"
+              >
+                Deny
+              </button>
+              <button
+                type="button"
+                onClick={() => void knocks.admit(knock.id)}
+                className="shrink-0 rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-white hover:bg-accent-hover"
+              >
+                Admit
+              </button>
+            </div>
+          ))}
         </div>
       )}
 
@@ -340,6 +378,7 @@ export default function Meeting({ roomId }: Props) {
           <Participants
             room={room}
             version={version}
+            roomKey={roomKey}
             meetingUrl={meetingUrl}
             onAskToMute={(identity) => void messaging.askToMute(identity)}
             onClose={() => setParticipantsOpen(false)}
@@ -444,6 +483,22 @@ function qualityLevel(quality: ConnectionQuality): number {
 /** getDisplayMedia is absent on iOS Safari; hide the control rather than fail. */
 function supportsScreenShare(): boolean {
   return typeof navigator.mediaDevices?.getDisplayMedia === 'function';
+}
+
+function WaitingForApproval({ roomId }: { roomId: string }) {
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-4 px-6 text-center">
+      <div className="h-7 w-7 animate-spin rounded-full border-2 border-border border-t-accent" />
+      <div>
+        <p className="text-[0.9375rem] font-medium" role="status">
+          Waiting for someone to let you in
+        </p>
+        <p className="mt-1.5 text-sm text-muted">
+          Meeting <span className="font-mono">{roomId}</span>
+        </p>
+      </div>
+    </div>
+  );
 }
 
 function Connecting({ relaying = false }: { relaying?: boolean }) {

@@ -95,3 +95,30 @@ function fromBase64Url(value: string): Uint8Array {
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
   return bytes;
 }
+
+/**
+ * Safety number: a short fingerprint of the room key.
+ *
+ * What it defends against is narrow but real. The server never sees the key, so
+ * it cannot tamper with it — but a *link* can be tampered with. Someone sent a
+ * convincing lookalike invitation ends up in a different room, with a different
+ * key, believing they are in the right meeting. Reading four groups of digits
+ * aloud settles that in seconds, over a channel the attacker does not control.
+ *
+ * It proves the room, not the people: everyone holding the link has the same
+ * key, so a matching number says "same meeting", never "no eavesdropper".
+ */
+export async function safetyNumber(roomKey: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', decodeRoomKey(roomKey));
+  const bytes = new Uint8Array(digest);
+
+  // Four groups of five digits: long enough that a collision cannot be
+  // engineered casually, short enough to read over a phone.
+  const groups: string[] = [];
+  for (let i = 0; i < 4; i++) {
+    let value = 0;
+    for (let j = 0; j < 3; j++) value = value * 256 + (bytes[i * 3 + j] ?? 0);
+    groups.push(String(value % 100000).padStart(5, '0'));
+  }
+  return groups.join(' ');
+}

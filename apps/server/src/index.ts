@@ -9,9 +9,25 @@
 import { buildApp } from './app.js';
 import { config } from './config.js';
 import { createNonceStore } from './lib/nonceStore.js';
+import { createLobbyStore } from './lib/lobby.js';
+import { Redis } from 'ioredis';
 
 const nonces = createNonceStore(config.redis.url, config.redis.password);
-const app = await buildApp(nonces);
+
+// Lobby state must be shared across replicas: a knock can be created on one
+// node and admitted from another, so an in-process map would strand joiners
+// behind a host who never sees their request.
+const lobbyRedis = config.redis.url
+  ? new Redis(config.redis.url, {
+      ...(config.redis.password ? { password: config.redis.password } : {}),
+      connectTimeout: 3_000,
+      maxRetriesPerRequest: 2,
+      enableOfflineQueue: false,
+    })
+  : null;
+const lobby = createLobbyStore(lobbyRedis);
+
+const app = await buildApp(nonces, lobby);
 
 try {
   await app.listen({ host: config.http.host, port: config.http.port });
@@ -38,6 +54,7 @@ async function shutdown(signal: string): Promise<void> {
   try {
     await app.close();
     await nonces.close();
+    await lobby.close();
     process.exit(0);
   } catch (error) {
     app.log.error({ err: error }, 'error during shutdown');

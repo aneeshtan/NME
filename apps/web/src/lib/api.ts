@@ -18,6 +18,18 @@ export interface IceServerConfig {
   credential?: string;
 }
 
+/** A lobby room withholds the token until someone inside admits the joiner. */
+export interface JoinWaiting {
+  status: 'waiting';
+  knockId: string;
+}
+
+export interface PendingKnock {
+  id: string;
+  displayName: string;
+  createdAt: number;
+}
+
 export interface JoinCredentials {
   token: string;
   url: string;
@@ -110,12 +122,63 @@ export function createRoom(): Promise<{ roomId: string }> {
 export function joinRoom(
   roomId: string,
   displayName: string,
-  options: { relay?: boolean } = {},
-): Promise<JoinCredentials> {
-  return request<JoinCredentials>(`/rooms/${encodeURIComponent(roomId)}/join`, {
+  options: { relay?: boolean; hostKey?: string } = {},
+): Promise<JoinCredentials | JoinWaiting> {
+  return request<JoinCredentials | JoinWaiting>(
+    `/rooms/${encodeURIComponent(roomId)}/join`,
+    {
+      method: 'POST',
+      body: JSON.stringify(options.relay ? { displayName, relay: true } : { displayName }),
+      // Sent as a header so the host secret never lands in a URL, a log line,
+      // or a Referer.
+      ...(options.hostKey ? { headers: { 'X-Host-Key': options.hostKey } } : {}),
+    },
+  );
+}
+
+export function createRoomWithLobby(lobby: boolean): Promise<{ roomId: string; hostKey?: string }> {
+  return request<{ roomId: string; hostKey?: string }>('/rooms', {
     method: 'POST',
-    body: JSON.stringify(
-      options.relay ? { displayName, relay: true } : { displayName },
-    ),
+    body: JSON.stringify({ lobby }),
   });
+}
+
+/** Joiner: poll for the host's verdict. */
+export function claimKnock(
+  roomId: string,
+  knockId: string,
+  options: { relay?: boolean } = {},
+): Promise<
+  | ({ status: 'admitted' } & JoinCredentials)
+  | { status: 'waiting' }
+  | { status: 'denied' }
+> {
+  return request(`/rooms/${encodeURIComponent(roomId)}/knocks/${encodeURIComponent(knockId)}/claim`, {
+    method: 'POST',
+    body: JSON.stringify(options.relay ? { relay: true } : {}),
+  });
+}
+
+/** Host: who is waiting. */
+export function listKnocks(roomId: string, hostKey: string): Promise<{ knocks: PendingKnock[] }> {
+  return request<{ knocks: PendingKnock[] }>(`/rooms/${encodeURIComponent(roomId)}/knocks`, {
+    headers: { 'X-Host-Key': hostKey },
+  });
+}
+
+/** Host: admit or deny a waiting joiner. */
+export function resolveKnock(
+  roomId: string,
+  knockId: string,
+  hostKey: string,
+  admit: boolean,
+): Promise<{ status: string }> {
+  return request<{ status: string }>(
+    `/rooms/${encodeURIComponent(roomId)}/knocks/${encodeURIComponent(knockId)}`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ admit }),
+      headers: { 'X-Host-Key': hostKey },
+    },
+  );
 }

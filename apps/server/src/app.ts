@@ -10,7 +10,9 @@ import { config } from './config.js';
 import { metaRoutes } from './routes/meta.js';
 import { roomRoutes } from './routes/rooms.js';
 import { webhookRoutes } from './routes/webhooks.js';
+import { knockRoutes } from './routes/knocks.js';
 import type { NonceStore } from './lib/nonceStore.js';
+import type { LobbyStore } from './lib/lobby.js';
 
 /** Requests that mutate state and must originate from a known browser origin. */
 const STATE_CHANGING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
@@ -30,7 +32,7 @@ function createLimiterRedis(): Redis {
   });
 }
 
-export async function buildApp(nonces: NonceStore): Promise<FastifyInstance> {
+export async function buildApp(nonces: NonceStore, lobby: LobbyStore): Promise<FastifyInstance> {
   const app = Fastify({
     logger: {
       level: config.logLevel,
@@ -45,6 +47,7 @@ export async function buildApp(nonces: NonceStore): Promise<FastifyInstance> {
           // Relay credentials are bearer secrets with a multi-hour lifetime.
           'res.iceServers',
           '*.credential',
+          'req.headers["x-host-key"]',
         ],
         censor: '[redacted]',
       },
@@ -223,7 +226,8 @@ export async function buildApp(nonces: NonceStore): Promise<FastifyInstance> {
   await app.register(
     async (api) => {
       await api.register(metaRoutes);
-      await api.register(roomRoutes, { nonces });
+      await api.register(roomRoutes, { nonces, lobby });
+      await api.register(knockRoutes, { nonces, lobby });
       if (config.livekit.webhooksEnabled) {
         await api.register(webhookRoutes, { nonces });
       }

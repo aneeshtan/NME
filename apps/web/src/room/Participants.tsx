@@ -1,15 +1,18 @@
 /**
  * Participants panel. Optional surface, kept to a list and a copy-link action.
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Room } from 'livekit-client';
 import { Track } from 'livekit-client';
 import { CalendarIcon, CloseIcon, MicOffIcon } from '../components/icons';
 import { CopyLinkButton } from '../components/CopyLinkButton';
+import { safetyNumber } from '../lib/e2ee';
 import { ScheduleDialog } from '../components/ScheduleDialog';
 
 interface Props {
   room: Room;
+  /** Room key, used only to derive the displayed fingerprint. */
+  roomKey: string | null;
   version: number;
   meetingUrl: string;
   /** Sends a courtesy mute request; see lib/messaging.ts on why it is not enforced. */
@@ -17,7 +20,27 @@ interface Props {
   onClose: () => void;
 }
 
-export function Participants({ room, version, meetingUrl, onAskToMute, onClose }: Props) {
+export function Participants({
+  room,
+  version,
+  roomKey,
+  meetingUrl,
+  onAskToMute,
+  onClose,
+}: Props) {
+  const [fingerprint, setFingerprint] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!roomKey) return;
+    let cancelled = false;
+    void safetyNumber(roomKey).then((value) => {
+      if (!cancelled) setFingerprint(value);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [roomKey]);
+
   const [scheduling, setScheduling] = useState(false);
   void version; // Re-render trigger; state is read from the live Room below.
   const participants = [room.localParticipant, ...room.remoteParticipants.values()];
@@ -103,6 +126,19 @@ export function Participants({ room, version, meetingUrl, onAskToMute, onClose }
           The link contains this meeting&rsquo;s encryption key. Share it only with people you
           want in the call.
         </p>
+
+        {fingerprint && (
+          <div className="mt-3 border-t border-border pt-3">
+            <p className="px-1 text-[0.6875rem] font-medium text-muted">Safety number</p>
+            <p className="mt-1 px-1 font-mono text-[0.8125rem] tracking-wide select-all">
+              {fingerprint}
+            </p>
+            <p className="mt-1 px-1 text-[0.6875rem] leading-relaxed text-muted">
+              Read this aloud to confirm everyone opened the same link. Different
+              numbers mean someone is in a different meeting.
+            </p>
+          </div>
+        )}
       </footer>
     </aside>
   );

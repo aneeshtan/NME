@@ -14,9 +14,18 @@ import { normalizeDisplayName, DISPLAY_NAME_MAX_LENGTH } from '../lib/displayNam
 import { countParticipants, ensureRoom, issueJoinToken } from '../lib/livekit.js';
 import { issueTurnCredentials } from '../lib/turn.js';
 import type { NonceStore } from '../lib/nonceStore.js';
+import {
+  createHostKey,
+  createKnockId,
+  hashHostKey,
+  KNOCK_TTL_SECONDS,
+  LOBBY_TTL_SECONDS,
+  type LobbyStore,
+} from '../lib/lobby.js';
 
 interface Options {
   nonces: NonceStore;
+  lobby: LobbyStore;
 }
 
 const roomIdParams = {
@@ -59,7 +68,7 @@ const joinBody = {
 } as const;
 
 export const roomRoutes: FastifyPluginAsync<Options> = async (app: FastifyInstance, opts) => {
-  const { nonces } = opts;
+  const { nonces, lobby } = opts;
 
   /**
    * Create a meeting. Heavily rate limited: this is the only route that
@@ -71,10 +80,15 @@ export const roomRoutes: FastifyPluginAsync<Options> = async (app: FastifyInstan
     {
       config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
       schema: {
+        body: {
+          type: 'object',
+          additionalProperties: false,
+          properties: { lobby: { type: 'boolean' } },
+        },
         response: {
           201: {
             type: 'object',
-            properties: { roomId: { type: 'string' } },
+            properties: { roomId: { type: 'string' }, hostKey: { type: 'string' } },
             required: ['roomId'],
           },
         },
@@ -83,8 +97,20 @@ export const roomRoutes: FastifyPluginAsync<Options> = async (app: FastifyInstan
     async (request, reply) => {
       const roomId = createRoomId();
       await ensureRoom(roomId);
-      request.log.info({ roomId }, 'room created');
-      return reply.code(201).send({ roomId });
+
+      const wantsLobby = (request.body as { lobby?: boolean } | undefined)?.lobby === true;
+      if (!wantsLobby) {
+        request.log.info({ roomId, lobby: false }, 'room created');
+        return reply.code(201).send({ roomId });
+      }
+
+      // The host secret is returned exactly once and never stored in the clear;
+      // only its hash is kept, so a database dump cannot admit anyone.
+      const hostKey = createHostKey();
+      await lobby.enable(roomId, hashHostKey(hostKey), LOBBY_TTL_SECONDS);
+
+      request.log.info({ roomId, lobby: true }, 'room created');
+      return reply.code(201).send({ roomId, hostKey });
     },
   );
 
@@ -125,6 +151,11 @@ export const roomRoutes: FastifyPluginAsync<Options> = async (app: FastifyInstan
               },
             },
           },
+          202: {
+            type: 'object',
+            required: ['status', 'knockId'],
+            properties: { status: { type: 'string' }, knockId: { type: 'string' } },
+          },
           400: errorResponse,
           404: errorResponse,
           409: errorResponse,
@@ -160,6 +191,31 @@ export const roomRoutes: FastifyPluginAsync<Options> = async (app: FastifyInstan
       // Idempotent: also covers the case where the room was reaped for being
       // empty between creation and the first join.
       await ensureRoom(roomId);
+
+      // Lobby rooms issue no token until somebody inside admits the joiner.
+      // Doing this check before minting is the whole point: a token handed out
+      // and then "revoked" client-side would already grant SFU access.
+      if (await lobby.isEnabled(roomId)) {
+        const hostKey = request.headers['x-host-key'];
+        const isHost =
+          typeof hostKey === 'string' && (await lobby.verifyHost(roomId, hostKey));
+
+        if (!isHost) {
+          const knockId = createKnockId();
+          await lobby.knock(
+            roomId,
+            {
+              id: knockId,
+              displayName: name,
+              status: 'pending',
+              createdAt: Date.now(),
+            },
+            KNOCK_TTL_SECONDS,
+          );
+          request.log.info({ roomId, knockId }, 'knock created');
+          return reply.code(202).send({ status: 'waiting', knockId });
+        }
+      }
 
       const issued = await issueJoinToken(roomId, name);
       await nonces.register(issued.identity, config.room.tokenTtlSeconds);

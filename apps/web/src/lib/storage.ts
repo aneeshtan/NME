@@ -66,3 +66,27 @@ export function saveDevicePrefs(prefs: DevicePrefs): void {
     // Non-fatal.
   }
 }
+
+
+/**
+ * Host secret for a lobby room.
+ *
+ * Kept out of the meeting URL deliberately: the URL is the thing people paste
+ * into chats and calendars, and a host secret travelling with it would admit
+ * everyone it ever reached.
+ */
+export function saveHostKey(roomId: string, hostKey: string): void {
+  try {
+    localStorage.setItem(`nme.host.${roomId}`, hostKey);
+  } catch {
+    // Without storage the creator simply loses host rights on reload.
+  }
+}
+
+export function loadHostKey(roomId: string): string | null {
+  try {
+    return localStorage.getItem(`nme.host.${roomId}`);
+  } catch {
+    return null;
+  }
+}

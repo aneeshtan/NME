@@ -4,8 +4,13 @@
   "private": true,
   "type": "module",
   "description": "Minimal, fast, end-to-end encrypted group video meetings.",
-  "engines": { "node": ">=22" },
-  "workspaces": ["apps/server", "apps/web"],
+  "engines": {
+    "node": ">=22"
+  },
+  "workspaces": [
+    "apps/server",
+    "apps/web"
+  ],
   "scripts": {
     "dev": "npm run dev --workspaces --if-present",
     "dev:server": "npm run dev -w @nme/server",
@@ -14,5 +19,9 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "keys": "node scripts/gen-keys.mjs"
+  },
+  "overrides": {
+    "brace-expansion": "^2.0.2",
+    "minimatch": "^3.1.2"
   }
 }
