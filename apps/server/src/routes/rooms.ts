@@ -81,7 +81,10 @@ export const roomRoutes: FastifyPluginAsync<Options> = async (app: FastifyInstan
       config: { rateLimit: { max: 10, timeWindow: '1 minute' } },
       schema: {
         body: {
-          type: 'object',
+          // Nullable so a bodyless POST still validates: every field here is
+          // optional, and requiring an envelope for them would break any
+          // caller that reasonably sends nothing at all.
+          type: ['object', 'null'],
           additionalProperties: false,
           properties: {
             lobby: { type: 'boolean' },

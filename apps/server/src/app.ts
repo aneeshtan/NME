@@ -169,7 +169,10 @@ export async function buildApp(nonces: NonceStore, lobby: LobbyStore): Promise<F
     keyGenerator: (request) => request.ip,
     // Do not reveal the limit ceiling to clients probing for it.
     addHeadersOnExceeding: { 'x-ratelimit-limit': false, 'x-ratelimit-remaining': false },
-    errorResponseBuilder: () => ({
+    errorResponseBuilder: (_request, context) => ({
+      // statusCode is carried explicitly so the shared error handler below can
+      // recognise this as back-pressure rather than a failure.
+      statusCode: context.statusCode ?? 429,
       error: 'RATE_LIMITED',
       message: 'Too many requests. Please slow down.',
     }),
@@ -202,6 +205,23 @@ export async function buildApp(nonces: NonceStore, lobby: LobbyStore): Promise<F
    * clients receive a generic string so implementation details do not leak.
    */
   app.setErrorHandler((error: FastifyError, request, reply) => {
+    /**
+     * Rate limiting is back-pressure, not a fault.
+     *
+     * Without this the limiter's error arrives with no statusCode, falls
+     * through to the 500 branch, and a burst of legitimate traffic produces
+     * server errors plus a line of error-level log spam per request — the
+     * worst possible behaviour under exactly the load the limiter exists for.
+     */
+    const rateLimited =
+      (error as { error?: string }).error === 'RATE_LIMITED' || error.statusCode === 429;
+    if (rateLimited) {
+      return reply.code(429).send({
+        error: 'RATE_LIMITED',
+        message: 'Too many requests. Please slow down.',
+      });
+    }
+
     const status = error.statusCode ?? 500;
 
     if (status >= 500) {
