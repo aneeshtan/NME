@@ -250,11 +250,35 @@ Security properties:
 | ✅ | Participants see a disclosure banner when their connection is relayed |
 | ❌ | The relay operator can observe connection **metadata** (IP, timing, volume) for relayed participants — which is why it is fallback-only |
 
-Enable it by setting `TURN_URLS` and `TURN_AUTH_SECRET` in `.env`, with a
-matching coturn deployment — see [`infra/turnserver.conf`](infra/turnserver.conf),
-which is annotated and hardened (relay-to-private-IP denied, quotas, no CLI).
-coturn needs a host where **port 443 is free**; it cannot share the port with an
-existing nginx without SNI-level stream routing.
+Three provisioning modes, in order of preference:
+
+**1. Cloudflare Realtime** — no relay to operate. Credentials are minted per
+participant through Cloudflare's API and expire on their own. Cloudflare
+publishes TURNS on **port 443**, which is exactly what a 443-only firewall
+permits. Create a TURN key in the Cloudflare dashboard, then set:
+
+```bash
+CLOUDFLARE_TURN_KEY_ID=...
+CLOUDFLARE_TURN_API_TOKEN=...
+```
+
+The API token authenticates *the server* to Cloudflare and never reaches a
+browser — only the short-lived credentials it returns do. Cloudflare's response
+advertises plain `turn:` and `stun:` URLs alongside the TLS ones; the server
+strips everything that is not `turns:` before it reaches the client, so ICE
+cannot select an unencrypted relay path.
+
+**2. Self-hosted coturn** — `TURN_URLS` + `TURN_AUTH_SECRET`, with
+[`infra/turnserver.conf`](infra/turnserver.conf), which is annotated and
+hardened (relay-to-private-IP denied, quotas, no CLI). Needs a host where **port
+443 is free**; it cannot share the port with an existing nginx without SNI-level
+stream routing.
+
+**3. A hosted relay with fixed credentials** — `TURN_URLS` + `TURN_USERNAME` +
+`TURN_CREDENTIAL`. Weakest, because static credentials never expire.
+
+If the provider is unreachable, credential issuance degrades to "no relay
+available" within 5 seconds rather than hanging the join.
 
 Leaving `TURN_URLS` unset disables the whole path — the app behaves exactly as
 it did before, and restricted-network users simply cannot join.

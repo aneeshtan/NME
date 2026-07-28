@@ -130,6 +130,17 @@ function turnConfig() {
   const username = optional('TURN_USERNAME', '');
   const credential = optional('TURN_CREDENTIAL', '');
 
+  // Cloudflare Realtime: credentials are minted per participant via their API,
+  // and the relay URLs come back in the response, so TURN_URLS is not needed.
+  const cfKeyId = optional('CLOUDFLARE_TURN_KEY_ID', '');
+  const cfApiToken = optional('CLOUDFLARE_TURN_API_TOKEN', '');
+
+  if (Boolean(cfKeyId) !== Boolean(cfApiToken)) {
+    throw new Error(
+      'CLOUDFLARE_TURN_KEY_ID and CLOUDFLARE_TURN_API_TOKEN must be set together.',
+    );
+  }
+
   if (urls.length > 0) {
     // Fail at boot rather than at the moment a user on a restricted network
     // tries to join — that failure would be rare, remote, and hard to diagnose.
@@ -162,6 +173,7 @@ function turnConfig() {
     authSecret,
     username,
     credential,
+    cloudflare: Object.freeze({ keyId: cfKeyId, apiToken: cfApiToken }),
     /**
      * Credential lifetime. This is a genuine trade-off, not a tuning knob:
      * the relay re-authenticates when an allocation is refreshed, so a

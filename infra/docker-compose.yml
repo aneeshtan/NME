@@ -83,6 +83,8 @@ services:
       REDIS_URL: redis://redis:6379
       REDIS_PASSWORD: ${REDIS_PASSWORD}
       # Optional relay fallback; empty unless configured in .env.
+      CLOUDFLARE_TURN_KEY_ID: ${CLOUDFLARE_TURN_KEY_ID:-}
+      CLOUDFLARE_TURN_API_TOKEN: ${CLOUDFLARE_TURN_API_TOKEN:-}
       TURN_URLS: ${TURN_URLS:-}
       TURN_AUTH_SECRET: ${TURN_AUTH_SECRET:-}
       TURN_USERNAME: ${TURN_USERNAME:-}

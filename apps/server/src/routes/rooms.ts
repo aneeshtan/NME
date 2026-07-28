@@ -165,7 +165,7 @@ export const roomRoutes: FastifyPluginAsync<Options> = async (app: FastifyInstan
       await nonces.register(issued.identity, config.room.tokenTtlSeconds);
 
       // Only minted for a client that has already failed to connect directly.
-      const iceServers = relay === true ? issueTurnCredentials() : null;
+      const iceServers = relay === true ? await issueTurnCredentials(request.log) : null;
 
       request.log.info(
         { roomId, identity: issued.identity, relay: relay === true },
