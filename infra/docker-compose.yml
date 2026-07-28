@@ -32,6 +32,9 @@ services:
     build:
       context: ..
       dockerfile: apps/web/Dockerfile
+      args:
+        # Stamped into the og:image tag; see apps/web/Dockerfile.
+        APP_DOMAIN: ${APP_DOMAIN}
     ports:
       # Standalone: bind the public ports and let Caddy own TLS.
       # Behind another reverse proxy (CloudPanel, Plesk, an existing nginx):

@@ -37,11 +37,17 @@ export function parseMeetingInput(input: string): { roomId: string; key: string 
   if (trimmed.includes('/')) {
     try {
       const url = new URL(trimmed, URL_BASE);
+      const hash = url.hash.replace(/^#/, '');
+
+      // Short link: "/" plus a bare key. The room id is derived from the key by
+      // the caller, so none is returned here.
+      if (/^[A-Za-z0-9_-]{43}$/.test(hash)) return { roomId: '', key: hash };
+
       const match = /\/r\/([^/?#]+)/.exec(url.pathname);
       if (!match?.[1]) return null;
       const roomId = canonicalise(decodeURIComponent(match[1]));
       if (!roomId) return null;
-      const key = new URLSearchParams(url.hash.replace(/^#/, '')).get('k');
+      const key = new URLSearchParams(hash).get('k');
       return { roomId, key };
     } catch {
       return null;

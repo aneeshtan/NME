@@ -136,10 +136,13 @@ export function joinRoom(
   );
 }
 
-export function createRoomWithLobby(lobby: boolean): Promise<{ roomId: string; hostKey?: string }> {
+export function createRoomWithLobby(
+  lobby: boolean,
+  roomId?: string,
+): Promise<{ roomId: string; hostKey?: string }> {
   return request<{ roomId: string; hostKey?: string }>('/rooms', {
     method: 'POST',
-    body: JSON.stringify({ lobby }),
+    body: JSON.stringify(roomId ? { lobby, roomId } : { lobby }),
   });
 }
 

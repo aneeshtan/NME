@@ -83,7 +83,16 @@ export const roomRoutes: FastifyPluginAsync<Options> = async (app: FastifyInstan
         body: {
           type: 'object',
           additionalProperties: false,
-          properties: { lobby: { type: 'boolean' } },
+          properties: {
+            lobby: { type: 'boolean' },
+            /**
+             * Optional client-derived id. The client hashes its own key to get
+             * this, which is what lets the link carry only the key. The server
+             * learns no more than it did from generating one itself: a SHA-256
+             * digest reveals nothing about its preimage.
+             */
+            roomId: { type: 'string', minLength: 14, maxLength: 14 },
+          },
         },
         response: {
           201: {
@@ -95,10 +104,15 @@ export const roomRoutes: FastifyPluginAsync<Options> = async (app: FastifyInstan
       },
     },
     async (request, reply) => {
-      const roomId = createRoomId();
+      const body = (request.body ?? {}) as { lobby?: boolean; roomId?: string };
+
+      // A supplied id is still format-checked; anything malformed falls back to
+      // a server-generated one rather than being trusted.
+      const roomId =
+        body.roomId && isValidRoomId(body.roomId) ? body.roomId : createRoomId();
       await ensureRoom(roomId);
 
-      const wantsLobby = (request.body as { lobby?: boolean } | undefined)?.lobby === true;
+      const wantsLobby = body.lobby === true;
       if (!wantsLobby) {
         request.log.info({ roomId, lobby: false }, 'room created');
         return reply.code(201).send({ roomId });

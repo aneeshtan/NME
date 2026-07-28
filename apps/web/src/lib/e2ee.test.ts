@@ -1,5 +1,13 @@
 import { describe, expect, test } from 'vitest';
-import { buildMeetingUrl, decodeRoomKey, generateRoomKey, readRoomKeyFromUrl } from './e2ee';
+import {
+  buildMeetingUrl,
+  buildShortMeetingUrl,
+  decodeRoomKey,
+  deriveRoomId,
+  generateRoomKey,
+  readRoomKeyFromAnyUrl,
+  readRoomKeyFromUrl,
+} from './e2ee';
 
 describe('generateRoomKey', () => {
   test('produces a 256-bit key in unpadded base64url', () => {
@@ -83,5 +91,79 @@ describe('buildMeetingUrl', () => {
     const key = generateRoomKey();
     const url = new URL(buildMeetingUrl('https://meet.example.com', 'k7de-2mqx-9hbt', key));
     expect(readRoomKeyFromUrl(url.hash)).toBe(key);
+  });
+});
+
+describe('deriveRoomId', () => {
+  test('is deterministic — every participant computes the same id', async () => {
+    const key = generateRoomKey();
+    expect(await deriveRoomId(key)).toBe(await deriveRoomId(key));
+  });
+
+  test('matches the room-id format the server validates', async () => {
+    for (let i = 0; i < 50; i++) {
+      expect(await deriveRoomId(generateRoomKey())).toMatch(
+        /^[abcdefghjkmnpqrstuvwxyz23456789]{4}-[abcdefghjkmnpqrstuvwxyz23456789]{4}-[abcdefghjkmnpqrstuvwxyz23456789]{4}$/,
+      );
+    }
+  });
+
+  test('different keys give different ids', async () => {
+    const ids = new Set(
+      await Promise.all(Array.from({ length: 400 }, () => deriveRoomId(generateRoomKey()))),
+    );
+    expect(ids.size).toBe(400);
+  });
+
+  test('the id reveals nothing about the key', async () => {
+    // The server sees the id and must not be able to recover the key from it.
+    // A digest is one-way, so the check here is that no fragment of the key
+    // survives into the identifier.
+    const key = generateRoomKey();
+    const id = (await deriveRoomId(key)).replace(/-/g, '');
+    for (let i = 0; i + 4 <= key.length; i++) {
+      expect(id).not.toContain(key.slice(i, i + 4));
+    }
+  });
+});
+
+describe('short links', () => {
+  test('carry the key in the fragment, never the path', async () => {
+    // The fragment is what keeps the key away from the server and from
+    // link-preview crawlers; putting it in the path to save characters would
+    // hand it to both.
+    const key = generateRoomKey();
+    const url = new URL(buildShortMeetingUrl('https://meet.example.com', key));
+
+    expect(url.hash).toBe(`#${key}`);
+    expect(url.pathname).toBe('/');
+    expect(url.pathname + url.search).not.toContain(key);
+  });
+
+  test('are shorter than the long form', async () => {
+    const key = generateRoomKey();
+    const short = buildShortMeetingUrl('https://meet.example.com', key);
+    const long = buildMeetingUrl('https://meet.example.com', 'k7de-2mqx-9hbt', key);
+    // Removing "/r/", the 14-character id and "k=", less the "/" that stays.
+    expect(short.length).toBeLessThan(long.length);
+    expect(long.length - short.length).toBe(18);
+  });
+
+  test('round-trip back to the same key', async () => {
+    const key = generateRoomKey();
+    const url = new URL(buildShortMeetingUrl('https://meet.example.com', key));
+    expect(readRoomKeyFromAnyUrl(url.hash)).toBe(key);
+  });
+
+  test('the original link format still works', async () => {
+    // Links already sitting in calendars and chat histories must keep opening.
+    const key = generateRoomKey();
+    expect(readRoomKeyFromAnyUrl(`#k=${key}`)).toBe(key);
+  });
+
+  test('malformed fragments are rejected in both forms', async () => {
+    for (const bad of ['#', '#tooshort', `#${'A'.repeat(42)}`, `#k=${'A'.repeat(44)}`]) {
+      expect(readRoomKeyFromAnyUrl(bad)).toBeNull();
+    }
   });
 });

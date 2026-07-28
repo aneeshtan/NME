@@ -7,7 +7,12 @@
  */
 import { useSyncExternalStore } from 'react';
 
-export type Route = { name: 'home' } | { name: 'meeting'; roomId: string };
+export type Route =
+  | { name: 'home' }
+  /** Legacy link: the room id is in the path. */
+  | { name: 'meeting'; roomId: string }
+  /** Short link: the room id is derived from the key in the fragment. */
+  | { name: 'meeting'; roomId: null };
 
 const listeners = new Set<() => void>();
 
@@ -36,23 +41,30 @@ function subscribe(listener: () => void): () => void {
  * useSyncExternalStore will loop forever, so the parsed route is memoised
  * against the raw pathname.
  */
-let cachedPath = '';
+let cachedKey = '';
 let cachedRoute: Route = { name: 'home' };
 
 function getSnapshot(): Route {
-  const path = window.location.pathname;
-  if (path !== cachedPath) {
-    cachedPath = path;
-    cachedRoute = parseRoute(path);
+  // The fragment participates in routing now, so it is part of the cache key.
+  const key = window.location.pathname + window.location.hash;
+  if (key !== cachedKey) {
+    cachedKey = key;
+    cachedRoute = parseRoute(window.location.pathname, window.location.hash);
   }
   return cachedRoute;
 }
 
-function parseRoute(pathname: string): Route {
+function parseRoute(pathname: string, hash: string): Route {
   const match = /^\/r\/([^/]+)\/?$/.exec(pathname);
   if (match?.[1]) {
     return { name: 'meeting', roomId: decodeURIComponent(match[1]).toLowerCase() };
   }
+
+  // Short link: "/" carrying a 43-character key. Anything else is the home page.
+  if (pathname === '/' && /^#[A-Za-z0-9_-]{43}$/.test(hash)) {
+    return { name: 'meeting', roomId: null };
+  }
+
   return { name: 'home' };
 }
 

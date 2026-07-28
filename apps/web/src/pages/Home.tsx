@@ -5,7 +5,7 @@ import { useCallback, useRef, useState } from 'react';
 import { Logo } from '../components/Logo';
 import { ArrowRightIcon, ShieldIcon } from '../components/icons';
 import { createRoomWithLobby, ApiError } from '../lib/api';
-import { buildMeetingUrl, generateRoomKey } from '../lib/e2ee';
+import { buildShortMeetingUrl, deriveRoomId, generateRoomKey } from '../lib/e2ee';
 import { parseMeetingInput } from '../lib/room';
 import { copyText } from '../components/CopyLinkButton';
 import { navigate } from '../lib/router';
@@ -28,19 +28,22 @@ export function Home() {
       // The key is generated here, in the browser, and never sent anywhere.
       // The server learns the room ID; only people holding the link learn the key.
       const key = generateRoomKey();
-      const { roomId, hostKey } = await createRoomWithLobby(requireApproval);
+      // Derived, not requested: the id is a function of the key, so the link
+      // only has to carry the key.
+      const roomId = await deriveRoomId(key);
+      const { hostKey } = await createRoomWithLobby(requireApproval, roomId);
 
       // Stored, never placed in the URL: the link gets forwarded, and a host
       // secret riding along with it would make the lobby meaningless.
       if (hostKey) saveHostKey(roomId, hostKey);
-      const url = buildMeetingUrl(window.location.origin, roomId, key);
+      const url = buildShortMeetingUrl(window.location.origin, key);
 
       // Copy before navigating: the clipboard write must happen inside the
       // user-gesture task, and after a route change some browsers refuse it.
       const didCopy = await copyText(url);
       setCopied(didCopy);
 
-      navigate(`/r/${roomId}#k=${key}`);
+      navigate(`/#${key}`);
     } catch (cause) {
       setError(
         cause instanceof ApiError ? cause.message : 'Could not create the meeting. Try again.',
@@ -68,7 +71,7 @@ export function Home() {
         return;
       }
 
-      navigate(`/r/${parsed.roomId}#k=${parsed.key}`);
+      navigate(`/#${parsed.key}`);
     },
     [joinValue],
   );

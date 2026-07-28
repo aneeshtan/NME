@@ -17,6 +17,38 @@
     <!-- Meeting URLs must never be indexed or archived. -->
     <meta name="robots" content="noindex, nofollow, noarchive" />
 
+    <!--
+      Link preview.
+
+      Safe precisely because the encryption key lives in the URL fragment:
+      when a chat app builds a preview it fetches the URL over HTTP, and
+      fragments are never transmitted in a request. The crawler therefore sees
+      this page and learns nothing about the meeting.
+
+      The text is deliberately generic for the same reason — a preview naming
+      the meeting or its participants would leak into every group chat the
+      invitation passes through, and unlike the key that *would* travel.
+    -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="NME" />
+    <meta property="og:title" content="You're invited to a meeting" />
+    <meta
+      property="og:description"
+      content="Click the link to join. No account, no install. End-to-end encrypted."
+    />
+    <meta property="og:image" content="/preview.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="NME — end-to-end encrypted video meetings" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="You're invited to a meeting" />
+    <meta
+      name="twitter:description"
+      content="Click the link to join. No account, no install. End-to-end encrypted."
+    />
+    <meta name="twitter:image" content="/preview.png" />
+
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/icon.svg" />
   </head>

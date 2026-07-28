@@ -22,7 +22,7 @@ import { usePresenceAlerts } from '../room/usePresenceAlerts';
 import { useBackgroundBlur } from '../room/useBackgroundBlur';
 import { useKnocks } from '../room/useKnocks';
 import { REACTIONS } from '../lib/messaging';
-import { buildMeetingUrl, readRoomKeyFromUrl } from '../lib/e2ee';
+import { buildShortMeetingUrl, deriveRoomId, readRoomKeyFromAnyUrl } from '../lib/e2ee';
 import { loadDevicePrefs, saveDevicePrefs, saveDisplayName, loadHostKey } from '../lib/storage';
 import { Logo } from '../components/Logo';
 import { CopyLinkButton } from '../components/CopyLinkButton';
@@ -30,16 +30,33 @@ import { ShieldIcon, SignalIcon } from '../components/icons';
 import { navigate } from '../lib/router';
 
 interface Props {
-  roomId: string;
+  /** Null on a short link, where the id is derived from the key instead. */
+  roomId: string | null;
 }
 
-export default function Meeting({ roomId }: Props) {
+export default function Meeting({ roomId: routeRoomId }: Props) {
   // Read once on mount: the fragment must not be re-read after navigation, and
   // it is the one value the server can never supply.
-  const roomKey = useMemo(() => readRoomKeyFromUrl(window.location.hash), []);
+  const roomKey = useMemo(() => readRoomKeyFromAnyUrl(window.location.hash), []);
+
+  // Short links carry only the key, so the id is derived here. Deriving is a
+  // hash, so it resolves in a millisecond — but it is async, hence the state.
+  const [derivedRoomId, setDerivedRoomId] = useState<string | null>(routeRoomId);
+  useEffect(() => {
+    if (routeRoomId || !roomKey) return;
+    let cancelled = false;
+    void deriveRoomId(roomKey).then((id) => {
+      if (!cancelled) setDerivedRoomId(id);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [routeRoomId, roomKey]);
+
+  const roomId = derivedRoomId ?? '';
   const meetingUrl = useMemo(
-    () => (roomKey ? buildMeetingUrl(window.location.origin, roomId, roomKey) : ''),
-    [roomId, roomKey],
+    () => (roomKey ? buildShortMeetingUrl(window.location.origin, roomKey) : ''),
+    [roomKey],
   );
 
   const { room, status, error, relayed, version, connect, leave } = useRoom(roomId, roomKey);
@@ -191,6 +208,11 @@ export default function Meeting({ roomId }: Props) {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [status, toggleMic, toggleCamera]);
+
+  // Waiting on the one-millisecond hash before anything can be done with the id.
+  if (!derivedRoomId && roomKey) {
+    return <Connecting />;
+  }
 
   if (status === 'left') {
     return <LeftScreen roomId={roomId} meetingUrl={meetingUrl} />;

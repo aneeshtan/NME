@@ -122,3 +122,50 @@ export async function safetyNumber(roomKey: string): Promise<string> {
   }
   return groups.join(' ');
 }
+
+/**
+ * Derives the room ID from the key, so the link need not carry both.
+ *
+ * The key is 43 of the old URL's 88 characters and cannot shrink — 256 bits at
+ * six bits per base64url character is exactly 43, and random data does not
+ * compress. The room ID, however, is redundant: hashing the key yields a
+ * stable identifier every participant computes for themselves, taking the URL
+ * from 88 characters to 70.
+ *
+ * The server still learns only the ID. SHA-256 preimage resistance means an ID
+ * reveals nothing about the key that produced it, so this gives away no more
+ * than a server-generated ID did — while the key itself never leaves the
+ * fragment, and so never reaches the server or a link-preview crawler.
+ */
+export async function deriveRoomId(roomKey: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', decodeRoomKey(roomKey));
+  const bytes = new Uint8Array(digest);
+
+  // Same alphabet and 4-4-4 shape as a generated ID, so the server's existing
+  // validation and every display path continue to work untouched.
+  const alphabet = 'abcdefghjkmnpqrstuvwxyz23456789';
+  let out = '';
+  for (let i = 0; i < 12; i++) out += alphabet[(bytes[i] ?? 0) % alphabet.length];
+  return `${out.slice(0, 4)}-${out.slice(4, 8)}-${out.slice(8, 12)}`;
+}
+
+/** Short shareable link: the key alone, in the fragment. */
+export function buildShortMeetingUrl(origin: string, key: string): string {
+  return `${origin}/#${key}`;
+}
+
+/**
+ * Reads a key from either link form.
+ *
+ * The short form is a bare fragment; the original `#k=<key>` is still accepted
+ * so links already pasted into calendars and chats keep working.
+ */
+export function readRoomKeyFromAnyUrl(hash: string): string | null {
+  const raw = hash.startsWith('#') ? hash.slice(1) : hash;
+  if (!raw) return null;
+
+  // Bare fragment: the whole thing is the key.
+  if (/^[A-Za-z0-9_-]{43}$/.test(raw)) return readRoomKeyFromUrl(`#k=${raw}`);
+
+  return readRoomKeyFromUrl(hash);
+}
