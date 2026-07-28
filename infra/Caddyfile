@@ -1,0 +1,142 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  Caddy: TLS termination, static SPA, API proxy.
+#
+#  Chosen over nginx because automatic certificate issuance and renewal is
+#  built in — no certbot, no cron, no renewal outage at 3am — and because HTTP/3
+#  is on by default. TLS 1.3 with a modern cipher suite is the out-of-the-box
+#  behaviour, not something that must be assembled from a config snippet.
+# ─────────────────────────────────────────────────────────────────────────────
+
+{
+	email {$ACME_EMAIL}
+
+	# Caddy negotiates TLS 1.3 where the client supports it and refuses anything
+	# below 1.2. Forcing a 1.3 floor would lock out a number of otherwise-current
+	# mobile browsers for no real gain: the 1.2 suites Caddy permits are all
+	# forward-secret AEAD.
+	servers {
+		protocols h1 h2 h3
+		strict_sni_host on
+	}
+}
+
+(security_headers) {
+	header {
+		# HSTS with preload. Two years is the minimum the preload list accepts.
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+
+		# Meeting URLs carry the encryption key in the fragment. `no-referrer`
+		# guarantees no part of the URL is ever sent to another origin.
+		Referrer-Policy "no-referrer"
+
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+
+		# Deny every powerful feature except the three the app actually needs.
+		# `display-capture` is required for screen sharing.
+		Permissions-Policy "accelerometer=(), ambient-light-sensor=(), autoplay=(self), battery=(), camera=(self), display-capture=(self), document-domain=(), encrypted-media=(), gamepad=(), geolocation=(), gyroscope=(), hid=(), idle-detection=(), interest-cohort=(), magnetometer=(), microphone=(self), midi=(), payment=(), publickey-credentials-get=(), screen-wake-lock=(), serial=(), usb=(), xr-spatial-tracking=()"
+
+		# Cross-origin isolation. COEP is deliberately NOT set to require-corp:
+		# it would break the media elements without adding protection here, and
+		# the app loads no cross-origin subresources at all.
+		Cross-Origin-Opener-Policy "same-origin"
+		Cross-Origin-Resource-Policy "same-origin"
+
+		# Do not advertise the server implementation.
+		-Server
+		-X-Powered-By
+	}
+}
+
+# ── Application ──────────────────────────────────────────────────────────────
+{$APP_DOMAIN} {
+	import security_headers
+
+	# Compression, best-first. zstd is ~15% smaller than gzip on our JS at
+	# comparable cost; Caddy falls back automatically for older clients.
+	encode zstd gzip
+
+	# ── Content Security Policy ──
+	#
+	# `default-src 'none'` means every resource type must be explicitly allowed,
+	# so a future addition fails closed rather than silently inheriting.
+	#
+	#  script-src 'self'      — no inline scripts, no eval, no CDN. This is the
+	#                           single most effective XSS mitigation available.
+	#  worker-src 'self' blob:— the E2EE worker is a same-origin chunk; blob: is
+	#                           required because livekit-client instantiates the
+	#                           worker from a Blob in some code paths.
+	#  style-src 'self' 'unsafe-inline'
+	#                        — Tailwind emits a static stylesheet, but React sets
+	#                           the one dynamic value (an avatar hue) through the
+	#                           CSSOM. 'unsafe-inline' for styles carries none of
+	#                           the code-execution risk that it does for scripts.
+	#  connect-src           — the API is same-origin; the SFU is a separate host
+	#                           reached over WSS and HTTPS.
+	#  media-src blob: mediastream:
+	#                        — WebRTC MediaStreams are attached to <video>.
+	#  frame-src 'none', object-src 'none', base-uri 'none'
+	#                        — no framing, no plugins, no <base> tag injection.
+	header {
+		Content-Security-Policy "default-src 'none'; script-src 'self'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; media-src 'self' blob: mediastream:; connect-src 'self' https://{$LIVEKIT_DOMAIN} wss://{$LIVEKIT_DOMAIN}; manifest-src 'self'; base-uri 'none'; form-action 'none'; frame-src 'none'; frame-ancestors 'none'; object-src 'none'; upgrade-insecure-requests"
+	}
+
+	# ── API ──
+	handle /api/* {
+		reverse_proxy server:8080 {
+			header_up X-Real-IP {remote_host}
+			# Fail over quickly rather than holding a join request open.
+			transport http {
+				dial_timeout 3s
+				response_header_timeout 15s
+			}
+		}
+	}
+
+	# ── Static assets ──
+	# Vite emits content-hashed filenames, so these are immutable forever.
+	handle /assets/* {
+		header Cache-Control "public, max-age=31536000, immutable"
+		root * /srv
+		file_server
+	}
+
+	# ── SPA ──
+	handle {
+		root * /srv
+		# index.html must never be cached, or a deploy leaves clients pinned to
+		# asset hashes that no longer exist.
+		header /index.html Cache-Control "no-cache, must-revalidate"
+		header / Cache-Control "no-cache, must-revalidate"
+		try_files {path} /index.html
+		file_server
+	}
+
+	log {
+		output stdout
+		format console
+		level INFO
+	}
+}
+
+# ── SFU signaling ────────────────────────────────────────────────────────────
+# LiveKit's WebSocket endpoint. Media itself does NOT flow through Caddy — it
+# travels over the UDP/TCP ports mapped directly to the LiveKit container, so
+# the proxy is never in the media path and cannot become a bottleneck.
+{$LIVEKIT_DOMAIN} {
+	import security_headers
+
+	reverse_proxy livekit:7880 {
+		header_up X-Real-IP {remote_host}
+		# Long-lived WebSocket: no response timeout, or calls would be cut.
+		transport http {
+			dial_timeout 3s
+		}
+	}
+
+	log {
+		output stdout
+		format console
+		level INFO
+	}
+}

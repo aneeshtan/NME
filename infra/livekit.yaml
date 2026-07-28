@@ -1,0 +1,95 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  LiveKit SFU configuration.
+#
+#  Media is DTLS-SRTP encrypted on every hop and additionally end-to-end
+#  encrypted by the clients — this server forwards frames it cannot decrypt.
+#
+#  NOTE: LiveKit does not expand ${VARIABLES} inside this file. Everything that
+#  varies per deployment is therefore supplied through the environment variables
+#  LiveKit reads natively (LIVEKIT_KEYS, LIVEKIT_REDIS_PASSWORD), and everything
+#  here is a literal.
+# ─────────────────────────────────────────────────────────────────────────────
+
+port: 7880
+
+rtc:
+  # Single UDP port for all media, multiplexed by ICE ufrag.
+  #
+  # The alternative — a 10,000-port range — makes `docker compose up` crawl
+  # while docker-proxy binds each port and complicates every firewall rule.
+  # UDP mux costs nothing measurable below several thousand tracks per node and
+  # reduces the exposed surface to two ports.
+  udp_port: 7882
+
+  # TCP fallback for networks that block UDP outright. Slower, because TCP
+  # retransmission causes head-of-line blocking on real-time media, but it is
+  # the difference between a degraded call and no call.
+  tcp_port: 7881
+
+  # Required behind Docker NAT: the container sees only a private address, so
+  # LiveKit must discover and advertise the public one in its ICE candidates.
+  use_external_ip: true
+
+  # Container-internal addresses are unreachable for clients, and each one
+  # advertised costs a connectivity check that must time out before ICE
+  # completes — measurably slower joins.
+  enable_loopback_candidate: false
+
+# ── TURN ─────────────────────────────────────────────────────────────────────
+#
+# Deliberately disabled, and the reasoning matters.
+#
+# TURN exists to relay media between two peers that cannot reach each other
+# directly. In an SFU topology the "far end" is this server, which has a public
+# IP — every client can reach it outbound through any NAT, so the NAT-traversal
+# problem TURN solves does not arise. The only case TURN genuinely helps here is
+# a firewall that permits traffic solely on port 443, and for that the relay has
+# to be TURN-over-TLS on 443, not the UDP/3478 relay.
+#
+# UDP/3478 would therefore add an open port, a credential system, and an extra
+# media hop while covering essentially no case that ICE/UDP on 7882 does not
+# already cover. The TCP fallback above handles UDP-blocked networks.
+#
+# To enable TURN/TLS on 443 for maximally restrictive networks, see the
+# "Hardened TURN" section in README.md — it requires sharing Caddy's
+# certificates into this container.
+turn:
+  enabled: false
+
+# Redis makes the deployment horizontally scalable: nodes share room state, so
+# any node can serve any participant and the load balancer needs no affinity.
+# Remove this block for a single-node deployment; LiveKit then keeps state in
+# memory. The password arrives via LIVEKIT_REDIS_PASSWORD.
+redis:
+  address: redis:6379
+
+# Participant lifecycle events, used by the control plane to detect and evict
+# replayed join tokens. Deliveries are JWT-signed with the API secret, so the
+# endpoint cannot be spoofed even though it is reachable.
+#
+# `api_key` selects which key signs the delivery and must match LIVEKIT_KEYS.
+# An API key is a public identifier, not a credential — all security rests on
+# the secret — so it is safe to fix as a literal here.
+webhook:
+  api_key: nme
+  urls:
+    - http://server:8080/api/webhooks/livekit
+
+room:
+  # Terminate empty rooms promptly; an idle room still costs a goroutine and a
+  # slot in the room map.
+  empty_timeout: 120
+  departure_timeout: 20
+  max_participants: 25
+  # Rooms are created explicitly by the control plane, which is what lets it
+  # apply policy. Implicit creation would let any valid token conjure a room.
+  auto_create: false
+
+logging:
+  level: info
+  json: true
+  sample: true
+
+# Prometheus metrics for capacity planning. Reachable only inside the compose
+# network — it is not proxied by Caddy and not published to the host.
+prometheus_port: 6789

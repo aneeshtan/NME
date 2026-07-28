@@ -1,0 +1,152 @@
+@import 'tailwindcss';
+
+/**
+ * Design tokens.
+ *
+ * Two surfaces, not one: the marketing/prejoin surface follows the system
+ * light/dark preference, while the meeting itself is always dark — a bright
+ * chrome around a video grid washes out faces and is what every serious
+ * conferencing tool eventually converges on.
+ */
+@theme {
+  --color-accent: oklch(0.58 0.19 258);
+  --color-accent-hover: oklch(0.53 0.19 258);
+  --color-danger: oklch(0.56 0.21 25);
+  --color-danger-hover: oklch(0.51 0.21 25);
+
+  --color-bg: oklch(1 0 0);
+  --color-surface: oklch(0.98 0.002 260);
+  --color-elevated: oklch(1 0 0);
+  --color-border: oklch(0.9 0.004 260);
+  --color-fg: oklch(0.22 0.01 260);
+  --color-muted: oklch(0.52 0.012 260);
+
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    sans-serif;
+
+  --radius-xl: 0.875rem;
+  --radius-2xl: 1.25rem;
+
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  @theme {
+    --color-bg: oklch(0.17 0.008 260);
+    --color-surface: oklch(0.21 0.009 260);
+    --color-elevated: oklch(0.25 0.01 260);
+    --color-border: oklch(0.31 0.011 260);
+    --color-fg: oklch(0.97 0.002 260);
+    --color-muted: oklch(0.7 0.012 260);
+  }
+}
+
+/* The meeting surface opts out of the light theme entirely. */
+[data-surface='meeting'] {
+  --color-bg: oklch(0.15 0.008 260);
+  --color-surface: oklch(0.2 0.009 260);
+  --color-elevated: oklch(0.26 0.01 260);
+  --color-border: oklch(0.31 0.011 260);
+  --color-fg: oklch(0.97 0.002 260);
+  --color-muted: oklch(0.72 0.012 260);
+  color-scheme: dark;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    background-color: var(--color-bg);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    /* Prevent rubber-band scrolling from revealing the page behind the grid. */
+    overscroll-behavior: none;
+  }
+
+  /*
+   * Visible focus for keyboard users only. Removing focus rings outright is the
+   * single most common accessibility failure in polished UIs; :focus-visible
+   * keeps the ring for keyboard navigation while sparing mouse users.
+   */
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  /* Respect users who get motion sickness from transitions. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  /*
+   * Video grid.
+   *
+   * Column count is driven by a data attribute rather than an inline style, so
+   * the CSP needs no `style-src 'unsafe-inline'`. Each tile keeps a 16:9 box
+   * and the grid centres itself, which is what makes a 1-, 3-, or 7-person call
+   * all look deliberate instead of stretched.
+   */
+  .video-grid {
+    display: grid;
+    gap: 0.5rem;
+    width: 100%;
+    height: 100%;
+    align-content: center;
+    justify-content: center;
+    grid-auto-rows: 1fr;
+  }
+  .video-grid[data-columns='1'] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .video-grid[data-columns='2'] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .video-grid[data-columns='3'] {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .video-grid[data-columns='4'] {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .video-grid[data-columns='5'] {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  @media (max-width: 640px) {
+    .video-grid[data-columns='3'],
+    .video-grid[data-columns='4'],
+    .video-grid[data-columns='5'] {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  /* Speaking indicator: a ring rather than a colour shift, so it reads at a
+     glance without competing with the video content. */
+  .tile-speaking {
+    box-shadow:
+      0 0 0 2px var(--color-accent),
+      0 0 0 5px color-mix(in oklch, var(--color-accent) 25%, transparent);
+  }
+}
+
+@utility tap-target {
+  /* WCAG 2.2 target size minimum. */
+  min-width: 44px;
+  min-height: 44px;
+}

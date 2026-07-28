@@ -1,0 +1,18 @@
+{
+  "name": "nme",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Minimal, fast, end-to-end encrypted group video meetings.",
+  "engines": { "node": ">=22" },
+  "workspaces": ["apps/server", "apps/web"],
+  "scripts": {
+    "dev": "npm run dev --workspaces --if-present",
+    "dev:server": "npm run dev -w @nme/server",
+    "dev:web": "npm run dev -w @nme/web",
+    "build": "npm run build -w @nme/server && npm run build -w @nme/web",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "keys": "node scripts/gen-keys.mjs"
+  }
+}

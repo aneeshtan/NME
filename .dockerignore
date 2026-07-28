@@ -1,0 +1,16 @@
+# Keep the build context small — it is uploaded to the daemon on every build.
+node_modules
+**/node_modules
+dist
+**/dist
+.git
+.github
+*.log
+coverage
+.env
+.env.*
+!.env.example
+**/*.tsbuildinfo
+infra/caddy_data
+infra/caddy_config
+README.md

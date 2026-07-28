@@ -1,0 +1,97 @@
+/**
+ * End-to-end encryption key material.
+ *
+ * The threat model: the SFU forwards media between participants, so it sees
+ * every packet. Standard WebRTC (DTLS-SRTP) encrypts each *hop*, which means
+ * the server can decrypt, inspect, and record everything. E2EE removes the
+ * server from the trust boundary entirely — frames are encrypted in the sender's
+ * browser and decrypted only in receivers' browsers.
+ *
+ * Key distribution without accounts:
+ *
+ *   https://meet.example.com/r/k7de-2mqx-9hbt#k=<256-bit key, base64url>
+ *
+ * The fragment (everything after `#`) is never transmitted in an HTTP request.
+ * The server issues the room ID and the join token, but has no way to learn the
+ * key — so possession of the *link* grants access, while possession of the
+ * *server* does not. This is the same model as a Signal group invite link, and
+ * it is the strongest arrangement achievable without a user directory.
+ *
+ * What this does and does not protect:
+ *   ✔ Audio, video, and screen-share content are unreadable by the server.
+ *   ✔ A compromised or subpoenaed SFU yields ciphertext only.
+ *   ✘ Metadata (who joined, when, how much bandwidth) is visible to the server.
+ *   ✘ Anyone with the link can join. Treat the link as the secret it is.
+ */
+
+/** AES-GCM 256. Matches the key length LiveKit's E2EE worker expects. */
+const KEY_BYTES = 32;
+const FRAGMENT_PARAM = 'k';
+
+/** Generates a fresh room key from the platform CSPRNG. */
+export function generateRoomKey(): string {
+  const bytes = new Uint8Array(KEY_BYTES);
+  crypto.getRandomValues(bytes);
+  return toBase64Url(bytes);
+}
+
+/**
+ * Reads the key from `location.hash`.
+ * Returns `null` when absent or malformed — never a default or derived key,
+ * because a predictable fallback would silently downgrade the room to
+ * server-readable media.
+ */
+export function readRoomKeyFromUrl(hash: string): string | null {
+  const raw = hash.startsWith('#') ? hash.slice(1) : hash;
+  if (!raw) return null;
+
+  let params: URLSearchParams;
+  try {
+    params = new URLSearchParams(raw);
+  } catch {
+    return null;
+  }
+
+  const key = params.get(FRAGMENT_PARAM);
+  if (!key) return null;
+
+  // Validate shape before it reaches the crypto layer: 32 bytes is exactly 43
+  // base64url characters without padding.
+  if (!/^[A-Za-z0-9_-]{43}$/.test(key)) return null;
+
+  try {
+    return fromBase64Url(key).byteLength === KEY_BYTES ? key : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Builds the shareable meeting URL, key included. */
+export function buildMeetingUrl(origin: string, roomId: string, key: string): string {
+  return `${origin}/r/${roomId}#${FRAGMENT_PARAM}=${key}`;
+}
+
+/**
+ * Converts the transported key into the raw bytes LiveKit's key provider needs.
+ * LiveKit derives the actual content-encryption key via HKDF internally.
+ */
+export function decodeRoomKey(key: string): ArrayBuffer {
+  const bytes = fromBase64Url(key);
+  // A fresh, exactly-sized buffer — never a view into a larger allocation,
+  // which the key provider would read past.
+  return bytes.buffer.slice(0, bytes.byteLength) as ArrayBuffer;
+}
+
+function toBase64Url(bytes: Uint8Array): string {
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function fromBase64Url(value: string): Uint8Array {
+  const padded = value.replace(/-/g, '+').replace(/_/g, '/');
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}

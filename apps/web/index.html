@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en" class="h-full">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>NME — Private video meetings</title>
+    <meta name="description" content="Instant, end-to-end encrypted video meetings. No account required." />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#0b0d10" />
+
+    <!--
+      Meeting links carry the encryption key in the URL fragment. A referrer
+      header would leak the full URL to any third party; `no-referrer` makes
+      that structurally impossible.
+    -->
+    <meta name="referrer" content="no-referrer" />
+    <!-- Meeting URLs must never be indexed or archived. -->
+    <meta name="robots" content="noindex, nofollow, noarchive" />
+
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/icon.svg" />
+  </head>
+  <body class="h-full">
+    <div id="root" class="h-full"></div>
+    <noscript>
+      <p style="padding: 2rem; font-family: system-ui, sans-serif">
+        NME needs JavaScript to encrypt and transmit media in your browser.
+      </p>
+    </noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

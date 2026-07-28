@@ -1,0 +1,85 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  Caddy behind a front proxy (CloudPanel, Plesk, or an existing nginx).
+#
+#  Differences from the standalone infra/Caddyfile:
+#
+#   1. Plain HTTP on :80 inside the container, published only on localhost.
+#      The site address is a bare port rather than a hostname, so Caddy never
+#      attempts ACME issuance — the front proxy owns TLS.
+#
+#   2. No SFU block. LiveKit's signaling port is published on localhost and the
+#      front proxy points at it directly; putting Caddy in that path would add a
+#      third proxy hop to every WebSocket for nothing.
+#
+#   3. No HSTS. The layer that terminates TLS owns that header, and emitting it
+#      here too would produce a duplicate Strict-Transport-Security on every
+#      response. Verify the front proxy actually sets it.
+#
+#  Select this file with CADDYFILE=./Caddyfile.cloudpanel in .env.
+# ─────────────────────────────────────────────────────────────────────────────
+
+{
+	# No public hostname is bound here, so automatic HTTPS has nothing to do.
+	auto_https off
+
+	servers {
+		# The front proxy is the immediate peer, and it arrives from the Docker
+		# bridge. Trusting private ranges is what lets Caddy preserve the real
+		# client IP from the incoming X-Forwarded-For instead of replacing it
+		# with the gateway address — without this every request would appear to
+		# come from one IP and the API's rate limiting would be meaningless.
+		trusted_proxies static private_ranges
+	}
+}
+
+:80 {
+	encode zstd gzip
+
+	# See infra/Caddyfile for the full reasoning behind each directive. The
+	# policy is identical; only the transport in front of it has changed.
+	header {
+		Content-Security-Policy "default-src 'none'; script-src 'self'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; media-src 'self' blob: mediastream:; connect-src 'self' https://{$LIVEKIT_DOMAIN} wss://{$LIVEKIT_DOMAIN}; manifest-src 'self'; base-uri 'none'; form-action 'none'; frame-src 'none'; frame-ancestors 'none'; object-src 'none'; upgrade-insecure-requests"
+
+		Referrer-Policy "no-referrer"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Permissions-Policy "accelerometer=(), ambient-light-sensor=(), autoplay=(self), battery=(), camera=(self), display-capture=(self), document-domain=(), encrypted-media=(), gamepad=(), geolocation=(), gyroscope=(), hid=(), idle-detection=(), interest-cohort=(), magnetometer=(), microphone=(self), midi=(), payment=(), publickey-credentials-get=(), screen-wake-lock=(), serial=(), usb=(), xr-spatial-tracking=()"
+		Cross-Origin-Opener-Policy "same-origin"
+		Cross-Origin-Resource-Policy "same-origin"
+
+		-Server
+		-X-Powered-By
+	}
+
+	handle /api/* {
+		reverse_proxy server:8080 {
+			transport http {
+				dial_timeout 3s
+				response_header_timeout 15s
+			}
+		}
+	}
+
+	# Content-hashed filenames — immutable forever.
+	handle /assets/* {
+		header Cache-Control "public, max-age=31536000, immutable"
+		root * /srv
+		file_server
+	}
+
+	handle {
+		root * /srv
+		# index.html must never be cached, or a deploy leaves clients pinned to
+		# asset hashes that no longer exist.
+		header /index.html Cache-Control "no-cache, must-revalidate"
+		header / Cache-Control "no-cache, must-revalidate"
+		try_files {path} /index.html
+		file_server
+	}
+
+	log {
+		output stdout
+		format console
+		level INFO
+	}
+}

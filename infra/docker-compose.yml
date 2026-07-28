@@ -1,0 +1,161 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  NME — production stack.
+#
+#    caddy   → TLS, static SPA, /api proxy, SFU signaling proxy
+#    server  → stateless control plane (rooms + tokens)
+#    livekit → SFU; media flows directly to it, never through Caddy
+#    redis   → LiveKit clustering + shared rate-limit and replay state
+#
+#  Run from the repository root:
+#    docker compose -f infra/docker-compose.yml --env-file .env up -d
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: nme
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: '10m'
+    max-file: '3'
+
+x-hardening: &hardening
+  # A container that cannot gain new privileges cannot be escalated through a
+  # setuid binary if the process is compromised.
+  security_opt:
+    - no-new-privileges:true
+  restart: unless-stopped
+  logging: *default-logging
+
+services:
+  caddy:
+    <<: *hardening
+    build:
+      context: ..
+      dockerfile: apps/web/Dockerfile
+    ports:
+      # Standalone: bind the public ports and let Caddy own TLS.
+      # Behind another reverse proxy (CloudPanel, Plesk, an existing nginx):
+      # set HTTP_BIND=127.0.0.1:8080 and HTTPS_BIND=127.0.0.1:8443 in .env so
+      # Caddy stays on localhost and the front proxy keeps 80/443.
+      - '${HTTP_BIND:-0.0.0.0:80}:80'
+      - '${HTTPS_BIND:-0.0.0.0:443}:443'
+      - '${HTTPS_BIND:-0.0.0.0:443}:443/udp' # HTTP/3
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN}
+      LIVEKIT_DOMAIN: ${LIVEKIT_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL}
+    volumes:
+      # Which Caddyfile is mounted decides whether Caddy terminates TLS itself
+      # or serves plain HTTP behind a front proxy. Defaults to standalone.
+      - ${CADDYFILE:-./Caddyfile}:/etc/caddy/Caddyfile:ro
+      # Certificates must survive a redeploy, or every restart triggers a fresh
+      # ACME issuance and quickly hits Let's Encrypt rate limits.
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      server:
+        condition: service_healthy
+    networks: [nme]
+
+  server:
+    <<: *hardening
+    build:
+      context: ..
+      dockerfile: apps/server/Dockerfile
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: '8080'
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      CORS_ORIGINS: https://${APP_DOMAIN}
+      # Trust forwarded headers only from the compose bridge network.
+      TRUST_PROXY: ${TRUST_PROXY:-172.16.0.0/12}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
+      LIVEKIT_HOST: http://livekit:7880
+      PUBLIC_LIVEKIT_URL: wss://${LIVEKIT_DOMAIN}
+      LIVEKIT_WEBHOOK_ENABLED: 'true'
+      MAX_PARTICIPANTS: ${MAX_PARTICIPANTS:-25}
+      ROOM_EMPTY_TIMEOUT: ${ROOM_EMPTY_TIMEOUT:-120}
+      ROOM_DEPARTURE_TIMEOUT: ${ROOM_DEPARTURE_TIMEOUT:-20}
+      TOKEN_TTL: ${TOKEN_TTL:-120}
+      VIDEO_CODEC: ${VIDEO_CODEC:-vp8}
+      REDIS_URL: redis://redis:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    # Read-only root filesystem: the app writes nothing to disk, so anything
+    # that tries to is a bug or an intrusion.
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks: [nme]
+    deploy:
+      resources:
+        limits: { cpus: '1.0', memory: 384M }
+
+  livekit:
+    <<: *hardening
+    # Pinned to a minor version: media servers change ICE and congestion-control
+    # behaviour between releases, and `latest` would make a call quality
+    # regression arrive unannounced on the next restart.
+    image: livekit/livekit-server:v1.13
+    command: --config /etc/livekit.yaml
+    ports:
+      # Signaling, on localhost only. Caddy reaches it over the compose network
+      # in standalone mode; a front proxy on the host needs this published.
+      - '127.0.0.1:7880:7880'
+      # Media ports are published directly and must stay publicly reachable.
+      # Routing them through any proxy would add a hop to every RTP packet for
+      # no benefit — and no reverse proxy handles the UDP path at all.
+      - '7881:7881/tcp' # ICE/TCP fallback for UDP-blocked networks
+      - '7882:7882/udp' # ICE/UDP mux — the primary media path
+    environment:
+      # Quoted because the value contains a colon, which YAML would otherwise
+      # read as a mapping. Supplied via the environment so the secret never
+      # enters a file on disk.
+      LIVEKIT_KEYS: '${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}'
+      LIVEKIT_REDIS_PASSWORD: ${REDIS_PASSWORD}
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks: [nme]
+    deploy:
+      resources:
+        limits: { cpus: '4.0', memory: 2G }
+
+  redis:
+    <<: *hardening
+    image: redis:7-alpine
+    command: >
+      redis-server
+      --requirepass ${REDIS_PASSWORD}
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --save ""
+      --appendonly no
+    # No persistence at all: every key here is ephemeral (rate-limit counters,
+    # replay nonces, room routing). Writing them to disk would create a durable
+    # record of meeting activity for no operational benefit.
+    healthcheck:
+      test: ['CMD', 'redis-cli', '--no-auth-warning', '-a', '${REDIS_PASSWORD}', 'ping']
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    # Not published to the host — reachable only inside the compose network.
+    networks: [nme]
+    deploy:
+      resources:
+        limits: { cpus: '0.5', memory: 320M }
+
+networks:
+  nme:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:
