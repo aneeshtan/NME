@@ -14,13 +14,20 @@ import {
   type RoomOptions,
 } from 'livekit-client';
 import { decodeRoomKey } from '../lib/e2ee';
-import type { ClientConfig } from '../lib/api';
+import type { ClientConfig, IceServerConfig } from '../lib/api';
 
 export interface ConnectParams {
   url: string;
   token: string;
   roomKey: string;
   config: ClientConfig;
+  /**
+   * Relay servers, supplied only on a fallback attempt. Their presence also
+   * switches ICE into relay-only mode — see `buildConnectOptions`.
+   */
+  iceServers?: IceServerConfig[];
+  /** Budget for the peer connection to establish before giving up. */
+  peerConnectionTimeoutMs?: number;
 }
 
 export class E2EEUnsupportedError extends Error {
@@ -54,14 +61,23 @@ export async function connectToRoom(params: ConnectParams): Promise<Room> {
 
   const room = new Room(buildRoomOptions(params.config, keyProvider, worker));
 
-  // The key must be installed before connecting; otherwise the first inbound
-  // frames arrive with no decryptor and are dropped. Raw bytes are passed
-  // through rather than a string, so no text encoding can corrupt the key.
-  await keyProvider.setKey(decodeRoomKey(params.roomKey));
-  await room.setE2EEEnabled(true);
+  try {
+    // The key must be installed before connecting; otherwise the first inbound
+    // frames arrive with no decryptor and are dropped. Raw bytes are passed
+    // through rather than a string, so no text encoding can corrupt the key.
+    await keyProvider.setKey(decodeRoomKey(params.roomKey));
+    await room.setE2EEEnabled(true);
 
-  await room.connect(params.url, params.token, buildConnectOptions());
-  return room;
+    await room.connect(params.url, params.token, buildConnectOptions(params));
+    return room;
+  } catch (error) {
+    // A failed attempt is followed by a relay retry, so everything this one
+    // allocated has to go. Without terminating the worker explicitly, each
+    // retry would strand a live Web Worker holding the room key.
+    await room.disconnect().catch(() => undefined);
+    worker.terminate();
+    throw error;
+  }
 }
 
 function buildRoomOptions(
@@ -140,21 +156,49 @@ function buildRoomOptions(
   };
 }
 
-function buildConnectOptions(): RoomConnectOptions {
+function buildConnectOptions(params: ConnectParams): RoomConnectOptions {
+  const relaying = (params.iceServers?.length ?? 0) > 0;
+
   return {
     autoSubscribe: true,
-    /**
-     * Start negotiating before the ICE gathering completes. Shaves a noticeable
-     * slice off join time on networks where STUN is slow to answer.
-     */
+
     rtcConfig: {
-      // The SFU supplies its own ICE servers (including TURN credentials) over
-      // the authenticated signaling channel. Hard-coding public STUN servers
-      // here would leak participants' IP addresses to a third party for no gain.
-      iceTransportPolicy: 'all',
+      /**
+       * On the direct attempt this is left unset, so the SFU's own ICE
+       * configuration applies. No public STUN servers are hard-coded — that
+       * would leak every participant's IP to a third party for no gain.
+       *
+       * On the relay attempt the server-issued credentials are injected here.
+       * livekit-client gives a caller-supplied `rtcConfig.iceServers`
+       * precedence over what the SFU advertises.
+       */
+      ...(relaying ? { iceServers: params.iceServers as RTCIceServer[] } : {}),
+
+      /**
+       * Relay-only on the fallback. Direct paths have already been tried and
+       * failed, so re-gathering them would just repeat a known-lost race before
+       * the relay candidate wins.
+       *
+       * It also improves privacy for the participant who needs it: with
+       * `relay`, every candidate they advertise belongs to the relay, so their
+       * real IP address is never exposed to other participants.
+       */
+      iceTransportPolicy: relaying ? 'relay' : 'all',
       bundlePolicy: 'max-bundle',
     },
-    maxRetries: 3,
+
+    /**
+     * The direct attempt gets a short budget so a blocked network fails fast
+     * and reaches the relay quickly, rather than leaving the user watching a
+     * spinner for the 15s default.
+     */
+    ...(params.peerConnectionTimeoutMs
+      ? { peerConnectionTimeout: params.peerConnectionTimeoutMs }
+      : {}),
+
+    // No retries on the direct attempt: a retry here just delays the fallback
+    // that is actually going to work.
+    maxRetries: relaying ? 3 : 0,
   };
 }
 

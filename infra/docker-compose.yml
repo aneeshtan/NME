@@ -82,6 +82,12 @@ services:
       VIDEO_CODEC: ${VIDEO_CODEC:-vp8}
       REDIS_URL: redis://redis:6379
       REDIS_PASSWORD: ${REDIS_PASSWORD}
+      # Optional relay fallback; empty unless configured in .env.
+      TURN_URLS: ${TURN_URLS:-}
+      TURN_AUTH_SECRET: ${TURN_AUTH_SECRET:-}
+      TURN_USERNAME: ${TURN_USERNAME:-}
+      TURN_CREDENTIAL: ${TURN_CREDENTIAL:-}
+      TURN_CREDENTIAL_TTL: ${TURN_CREDENTIAL_TTL:-21600}
     # Read-only root filesystem: the app writes nothing to disk, so anything
     # that tries to is a bug or an intrusion.
     read_only: true

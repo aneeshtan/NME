@@ -30,7 +30,7 @@ export default function Meeting({ roomId }: Props) {
     [roomId, roomKey],
   );
 
-  const { room, status, error, version, connect, leave } = useRoom(roomId, roomKey);
+  const { room, status, error, relayed, version, connect, leave } = useRoom(roomId, roomKey);
 
   const [prefs, setPrefs] = useState(loadDevicePrefs);
   const [joined, setJoined] = useState(false);
@@ -184,8 +184,8 @@ export default function Meeting({ roomId }: Props) {
     );
   }
 
-  if (!room || status === 'connecting') {
-    return <Connecting />;
+  if (!room || status === 'connecting' || status === 'relaying') {
+    return <Connecting relaying={status === 'relaying'} />;
   }
 
   const screenShare = screenShareTrack(room);
@@ -199,6 +199,22 @@ export default function Meeting({ roomId }: Props) {
           className="bg-accent px-4 py-2 text-center text-sm font-medium text-white"
         >
           Reconnecting…
+        </div>
+      )}
+
+      {relayed && status === 'connected' && (
+        // Disclosure, not a warning: the call is still end-to-end encrypted and
+        // the relay cannot read it, but a participant should know a third party
+        // is carrying their traffic.
+        <div
+          role="status"
+          className="flex items-center justify-center gap-1.5 bg-elevated px-4 py-1.5 text-center text-xs text-muted"
+        >
+          <ShieldIcon className="h-3.5 w-3.5 shrink-0" />
+          <span>
+            Connected via relay — your network blocked a direct connection. Still end-to-end
+            encrypted.
+          </span>
         </div>
       )}
 
@@ -246,12 +262,12 @@ function supportsScreenShare(): boolean {
   return typeof navigator.mediaDevices?.getDisplayMedia === 'function';
 }
 
-function Connecting() {
+function Connecting({ relaying = false }: { relaying?: boolean }) {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-4">
+    <div className="flex h-full flex-col items-center justify-center gap-4 px-6 text-center">
       <div className="h-7 w-7 animate-spin rounded-full border-2 border-border border-t-accent" />
       <p className="text-sm text-muted" role="status">
-        Joining meeting…
+        {relaying ? 'Your network is restricted — connecting via relay…' : 'Joining meeting…'}
       </p>
     </div>
   );

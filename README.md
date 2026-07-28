@@ -217,8 +217,47 @@ reaches it outbound through any NAT, so the problem TURN solves does not arise.
 UDP/3478 would add an open port and a credential system while covering
 essentially nothing that ICE/UDP on 7882 does not.
 
-The one genuine gap is a firewall permitting **only** port 443. See
-[Hardened TURN](#hardened-turn-optional) to close it.
+The one genuine gap is a firewall permitting **only** port 443 — closed by the
+optional relay fallback below.
+
+### Relay fallback for restricted networks
+
+Some corporate and hotel networks permit outbound traffic on 443 only. On those,
+signaling succeeds (it is WebSocket-over-TLS on 443) but media cannot connect,
+so a join fails after the page has loaded perfectly — a confusing failure mode.
+
+The fallback is a **two-phase connect**:
+
+1. **Direct first.** No relay credentials are requested or held. On a normal
+   network no third party is contacted, and the join is as fast as ever.
+2. **Relay only on failure.** If the media path does not establish within 8
+   seconds, the client requests relay credentials and retries.
+
+This ordering is the whole point. ICE gathers all candidate types in parallel,
+so simply listing a TURN server in the config would have every participant
+contact the relay on every call — even those who never need it. Withholding
+credentials until a direct attempt has actually failed means **the relay only
+ever sees the participants who genuinely require it.**
+
+Security properties:
+
+| | |
+| --- | --- |
+| ✅ | Media is encrypted twice over it: DTLS-SRTP, plus the app's own AES-GCM frame encryption. **The relay forwards ciphertext it cannot read** |
+| ✅ | `turns:` (TLS) is enforced — the server **refuses to start** with a plain `turn:` URL |
+| ✅ | Credentials are ephemeral HMAC (RFC 5766 REST scheme), unique per participant, and never embedded in the frontend bundle |
+| ✅ | The relay attempt uses `iceTransportPolicy: 'relay'`, so the participant's real IP is hidden from other participants too |
+| ✅ | Participants see a disclosure banner when their connection is relayed |
+| ❌ | The relay operator can observe connection **metadata** (IP, timing, volume) for relayed participants — which is why it is fallback-only |
+
+Enable it by setting `TURN_URLS` and `TURN_AUTH_SECRET` in `.env`, with a
+matching coturn deployment — see [`infra/turnserver.conf`](infra/turnserver.conf),
+which is annotated and hardened (relay-to-private-IP denied, quotas, no CLI).
+coturn needs a host where **port 443 is free**; it cannot share the port with an
+existing nginx without SNI-level stream routing.
+
+Leaving `TURN_URLS` unset disables the whole path — the app behaves exactly as
+it did before, and restricted-network users simply cannot join.
 
 ---
 

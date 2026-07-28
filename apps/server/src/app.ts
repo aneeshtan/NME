@@ -42,6 +42,9 @@ export async function buildApp(nonces: NonceStore): Promise<FastifyInstance> {
           'req.headers.cookie',
           'res.headers["set-cookie"]',
           'req.body.displayName',
+          // Relay credentials are bearer secrets with a multi-hour lifetime.
+          'res.iceServers',
+          '*.credential',
         ],
         censor: '[redacted]',
       },

@@ -12,6 +12,7 @@ import { config } from '../config.js';
 import { createRoomId, isValidRoomId } from '../lib/ids.js';
 import { normalizeDisplayName, DISPLAY_NAME_MAX_LENGTH } from '../lib/displayName.js';
 import { countParticipants, ensureRoom, issueJoinToken } from '../lib/livekit.js';
+import { issueTurnCredentials } from '../lib/turn.js';
 import type { NonceStore } from '../lib/nonceStore.js';
 
 interface Options {
@@ -48,6 +49,12 @@ const joinBody = {
   additionalProperties: false,
   properties: {
     displayName: { type: 'string', minLength: 1, maxLength: DISPLAY_NAME_MAX_LENGTH * 4 },
+    /**
+     * Set by the client only after a direct connection attempt has failed.
+     * Relay credentials are withheld from everyone else, so the vast majority
+     * of participants never receive them and the relay never sees them at all.
+     */
+    relay: { type: 'boolean' },
   },
 } as const;
 
@@ -104,6 +111,18 @@ export const roomRoutes: FastifyPluginAsync<Options> = async (app: FastifyInstan
               url: { type: 'string' },
               identity: { type: 'string' },
               displayName: { type: 'string' },
+              iceServers: {
+                type: 'array',
+                items: {
+                  type: 'object',
+                  required: ['urls'],
+                  properties: {
+                    urls: { type: 'array', items: { type: 'string' } },
+                    username: { type: 'string' },
+                    credential: { type: 'string' },
+                  },
+                },
+              },
             },
           },
           400: errorResponse,
@@ -114,7 +133,7 @@ export const roomRoutes: FastifyPluginAsync<Options> = async (app: FastifyInstan
     },
     async (request, reply) => {
       const { roomId } = request.params as { roomId: string };
-      const { displayName } = request.body as { displayName: string };
+      const { displayName, relay } = request.body as { displayName: string; relay?: boolean };
 
       if (!isValidRoomId(roomId)) {
         return reply.code(404).send({ error: 'NOT_FOUND', message: 'Meeting not found.' });
@@ -145,13 +164,22 @@ export const roomRoutes: FastifyPluginAsync<Options> = async (app: FastifyInstan
       const issued = await issueJoinToken(roomId, name);
       await nonces.register(issued.identity, config.room.tokenTtlSeconds);
 
-      request.log.info({ roomId, identity: issued.identity }, 'join token issued');
+      // Only minted for a client that has already failed to connect directly.
+      const iceServers = relay === true ? issueTurnCredentials() : null;
+
+      request.log.info(
+        { roomId, identity: issued.identity, relay: relay === true },
+        'join token issued',
+      );
 
       return reply.send({
         token: issued.token,
         url: config.livekit.publicUrl,
         identity: issued.identity,
         displayName: name,
+        // Credentials are deliberately absent from the response body entirely
+        // when not requested, rather than sent as an empty array.
+        ...(iceServers ? { iceServers: [iceServers] } : {}),
       });
     },
   );

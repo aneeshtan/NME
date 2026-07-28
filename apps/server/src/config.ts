@@ -111,6 +111,66 @@ export const config = Object.freeze({
     url: optional('REDIS_URL', ''),
     password: optional('REDIS_PASSWORD', ''),
   }),
+
+  /**
+   * TURN relay, used only as a fallback for participants whose network blocks
+   * direct media. Entirely optional — an unset TURN_URLS simply means those
+   * participants cannot connect, which is the pre-existing behaviour.
+   */
+  turn: Object.freeze(turnConfig()),
 });
+
+function turnConfig() {
+  const urls = optional('TURN_URLS', '')
+    .split(',')
+    .map((url) => url.trim())
+    .filter(Boolean);
+
+  const authSecret = optional('TURN_AUTH_SECRET', '');
+  const username = optional('TURN_USERNAME', '');
+  const credential = optional('TURN_CREDENTIAL', '');
+
+  if (urls.length > 0) {
+    // Fail at boot rather than at the moment a user on a restricted network
+    // tries to join — that failure would be rare, remote, and hard to diagnose.
+    //
+    // `turns:` (TLS) is required, not preferred. Plain `turn:` would leave the
+    // relay control channel and the credential itself readable on the wire, and
+    // would not survive the 443-only firewalls this fallback exists to solve.
+    for (const url of urls) {
+      if (!url.startsWith('turns:')) {
+        throw new Error(
+          `TURN_URLS must use the turns: (TLS) scheme for encrypted relay traffic; got "${url}"`,
+        );
+      }
+    }
+
+    if (!authSecret && !(username && credential)) {
+      throw new Error(
+        'TURN_URLS is set, so either TURN_AUTH_SECRET (preferred: ephemeral ' +
+          'credentials) or both TURN_USERNAME and TURN_CREDENTIAL must be provided.',
+      );
+    }
+
+    if (isProduction && authSecret && authSecret.length < 32) {
+      throw new Error('TURN_AUTH_SECRET must be at least 32 characters in production');
+    }
+  }
+
+  return {
+    urls: Object.freeze(urls) as readonly string[],
+    authSecret,
+    username,
+    credential,
+    /**
+     * Credential lifetime. This is a genuine trade-off, not a tuning knob:
+     * the relay re-authenticates when an allocation is refreshed, so a
+     * credential that expires mid-call drops the media. It must therefore
+     * comfortably exceed the longest expected meeting, while a longer window
+     * also means a leaked credential stays usable for longer.
+     */
+    credentialTtl: integer('TURN_CREDENTIAL_TTL', 21_600, 300, 86_400),
+  };
+}
 
 export type Config = typeof config;

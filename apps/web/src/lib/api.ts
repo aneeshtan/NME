@@ -12,11 +12,19 @@ export interface ClientConfig {
   videoCodec: 'vp8' | 'vp9';
 }
 
+export interface IceServerConfig {
+  urls: string[];
+  username?: string;
+  credential?: string;
+}
+
 export interface JoinCredentials {
   token: string;
   url: string;
   identity: string;
   displayName: string;
+  /** Present only when relay credentials were requested and are configured. */
+  iceServers?: IceServerConfig[];
 }
 
 /** Error carrying the server's machine-readable code so the UI can branch on it. */
@@ -91,9 +99,23 @@ export function createRoom(): Promise<{ roomId: string }> {
   return request<{ roomId: string }>('/rooms', { method: 'POST' });
 }
 
-export function joinRoom(roomId: string, displayName: string): Promise<JoinCredentials> {
+/**
+ * Requests a join token.
+ *
+ * `relay` is set only on a retry, after a direct connection has already failed.
+ * Asking for relay credentials up front would hand them to every participant —
+ * and expose every participant to the relay — to solve a problem almost none of
+ * them have.
+ */
+export function joinRoom(
+  roomId: string,
+  displayName: string,
+  options: { relay?: boolean } = {},
+): Promise<JoinCredentials> {
   return request<JoinCredentials>(`/rooms/${encodeURIComponent(roomId)}/join`, {
     method: 'POST',
-    body: JSON.stringify({ displayName }),
+    body: JSON.stringify(
+      options.relay ? { displayName, relay: true } : { displayName },
+    ),
   });
 }
