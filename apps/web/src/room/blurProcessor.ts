@@ -28,6 +28,10 @@ const BLUR_PX = 10;
  * halves GPU cost compared with segmenting every frame.
  */
 const SEGMENT_FPS = 15;
+/** Capture rate of the processed track. */
+const OUTPUT_FPS = 30;
+/** Background blur runs at 1/Nth resolution — see the note in `init`. */
+const SCRATCH_DIVISOR = 4;
 
 /** The model's fixed input resolution. */
 const MODEL_SIZE = 256;
@@ -47,7 +51,11 @@ export class BackgroundBlurProcessor implements TrackProcessor<Track.Kind.Video>
   private context?: CanvasRenderingContext2D | undefined;
   private segmenter?: Segmenter | undefined;
   private maskCanvas?: HTMLCanvasElement | undefined;
+  private scratch?: HTMLCanvasElement | undefined;
+  private scratchContext?: CanvasRenderingContext2D | undefined;
   private hasMask = false;
+  /** Guards against a second inference starting while one is still running. */
+  private segmenting = false;
   private frame = 0;
   private lastSegmentAt = 0;
   private stopped = false;
@@ -68,20 +76,54 @@ export class BackgroundBlurProcessor implements TrackProcessor<Track.Kind.Video>
     this.canvas = document.createElement('canvas');
     this.canvas.width = width;
     this.canvas.height = height;
-    // `desynchronized` lets the browser skip a frame of latency; `alpha: false`
-    // avoids per-pixel compositing work the output never needs.
-    this.context =
-      this.canvas.getContext('2d', { alpha: false, desynchronized: true }) ?? undefined;
+    // Alpha is mandatory, not optional: the whole composite hinges on
+    // `destination-in` punching the background away, and an opaque canvas
+    // silently cannot represent that — the mask step becomes a no-op.
+    this.context = this.canvas.getContext('2d', { desynchronized: true }) ?? undefined;
+
+    // Background blur is done on a quarter-size scratch canvas. A CSS blur
+    // filter over a full 720p frame every tick is largely CPU work in 2D canvas
+    // and is what makes this feel laggy; downscaling first is most of the blur
+    // for a fraction of the pixels.
+    this.scratch = document.createElement('canvas');
+    this.scratch.width = Math.max(1, Math.round(width / SCRATCH_DIVISOR));
+    this.scratch.height = Math.max(1, Math.round(height / SCRATCH_DIVISOR));
+    this.scratchContext = this.scratch.getContext('2d') ?? undefined;
 
     this.maskCanvas = document.createElement('canvas');
     this.maskCanvas.width = MODEL_SIZE;
     this.maskCanvas.height = MODEL_SIZE;
 
-    this.segmenter = await createSegmenter();
+    /**
+     * The model is loaded *without* blocking init, and this matters more than
+     * it looks. Measured cold, `createSegmenter` takes six to eighteen seconds
+     * — downloading the runtime, compiling shaders, and warming the first
+     * inference. Awaiting it here means the camera freezes for that entire
+     * period the moment somebody ticks the box, which reads as a broken
+     * feature rather than a loading one.
+     *
+     * Instead the render loop starts immediately and passes frames through
+     * untouched; the blur simply appears once the model is ready.
+     */
+    void createSegmenter()
+      .then((segmenter) => {
+        if (this.stopped) {
+          segmenter.dispose();
+          return;
+        }
+        this.segmenter = segmenter;
+      })
+      .catch(() => {
+        // Left unset: the pipeline keeps passing video through, so a failed
+        // model load costs the blur, never the call.
+        this.segmenter = undefined;
+      });
 
-    // captureStream at 0 means "produce a frame whenever the canvas is drawn",
-    // so the output rate follows our render loop rather than a fixed timer.
-    const [captured] = this.canvas.captureStream(0).getVideoTracks();
+    // A fixed capture rate rather than captureStream(0) + requestFrame(): the
+    // manual variant ties output exactly to the render loop, but where
+    // requestFrame is missing it produces no frames whatsoever — a black
+    // participant tile instead of a slightly less precise one.
+    const [captured] = this.canvas.captureStream(OUTPUT_FPS).getVideoTracks();
     if (!captured) throw new Error('Canvas capture produced no video track');
     this.processedTrack = captured;
 
@@ -111,6 +153,9 @@ export class BackgroundBlurProcessor implements TrackProcessor<Track.Kind.Video>
     }
     this.canvas = undefined;
     this.context = undefined;
+    this.scratch = undefined;
+    this.scratchContext = undefined;
+    this.segmenting = false;
   }
 
   private render = (): void => {
@@ -139,10 +184,9 @@ export class BackgroundBlurProcessor implements TrackProcessor<Track.Kind.Video>
       // 3. Blurred frame behind them. `destination-over` paints underneath what
       //    is already there, so the sharp cut-out survives.
       context.globalCompositeOperation = 'destination-over';
-      context.filter = `blur(${BLUR_PX}px)`;
-      context.drawImage(source, 0, 0, width, height);
-
       context.filter = 'none';
+      context.drawImage(this.blurredBackground(source), 0, 0, width, height);
+
       context.globalCompositeOperation = 'source-over';
     } else {
       // No mask yet: pass the frame through rather than showing black while the
@@ -152,25 +196,46 @@ export class BackgroundBlurProcessor implements TrackProcessor<Track.Kind.Video>
     }
 
     // Signals captureStream(0) to emit this frame.
-    (this.processedTrack as MediaStreamTrack & { requestFrame?: () => void })?.requestFrame?.();
-
     this.frame = requestAnimationFrame(this.render);
   };
+
+  /**
+   * Renders the blurred backdrop at reduced resolution.
+   *
+   * Downscaling is itself a low-pass filter, so a small blur radius on the
+   * small canvas plus the upscale on the way back produces a result close to a
+   * large radius at full size, for roughly a sixteenth of the pixels.
+   */
+  private blurredBackground(source: CanvasImageSource): HTMLCanvasElement {
+    const { scratch, scratchContext } = this;
+    if (!scratch || !scratchContext) return source as HTMLCanvasElement;
+
+    scratchContext.filter = `blur(${BLUR_PX / SCRATCH_DIVISOR}px)`;
+    scratchContext.drawImage(source, 0, 0, scratch.width, scratch.height);
+    scratchContext.filter = 'none';
+    return scratch;
+  }
 
   /** Re-segments at SEGMENT_FPS; the composite step runs every frame. */
   private async updateMask(): Promise<void> {
     const now = performance.now();
-    if (now - this.lastSegmentAt < 1000 / SEGMENT_FPS) return;
-    this.lastSegmentAt = now;
+    if (this.segmenting || now - this.lastSegmentAt < 1000 / SEGMENT_FPS) return;
 
     const { segmenter, source, maskCanvas } = this;
     if (!segmenter || !source || !maskCanvas) return;
 
+    this.segmenting = true;
     try {
       await segmenter.segment(source, maskCanvas);
       if (!this.stopped) this.hasMask = true;
     } catch {
       // A failed inference simply leaves the previous mask in place.
+    } finally {
+      // Stamped on completion, not on entry: if a pass takes longer than the
+      // interval, the next one should start after it finishes rather than
+      // queueing behind it and compounding the backlog.
+      this.lastSegmentAt = performance.now();
+      this.segmenting = false;
     }
   }
 }
@@ -210,7 +275,12 @@ async function createSegmenter(): Promise<Segmenter> {
         const resized = tf.image.resizeBilinear(frame, [MODEL_SIZE, MODEL_SIZE]);
         const batch = tf.expandDims(tf.div(resized, 255), 0);
 
-        const output = model.execute(batch) as import('@tensorflow/tfjs-core').Tensor4D;
+        // `execute` returns a tensor or an array of them depending on the
+        // graph; blindly casting produced a runtime failure on the array form.
+        const executed = model.execute(batch);
+        const output = (
+          Array.isArray(executed) ? executed[0] : executed
+        ) as import('@tensorflow/tfjs-core').Tensor4D;
 
         // Two channels: background and person. Softmax turns the pair into
         // probabilities; channel 1 is the person's alpha.
