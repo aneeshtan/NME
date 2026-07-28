@@ -8,6 +8,7 @@
  */
 import { useEffect, useRef } from 'react';
 import type { DeviceKind, DeviceState } from './useDevices';
+import type { BackgroundBlur } from './useBackgroundBlur';
 import { CloseIcon } from '../components/icons';
 
 interface Props {
@@ -18,6 +19,7 @@ interface Props {
   onToggleWarnWhenMuted: () => void;
   presenceSound: boolean;
   onTogglePresenceSound: () => void;
+  blur: BackgroundBlur;
   onClose: () => void;
 }
 
@@ -35,6 +37,7 @@ export function DeviceMenu({
   onToggleWarnWhenMuted,
   presenceSound,
   onTogglePresenceSound,
+  blur,
   onClose,
 }: Props) {
   const panelRef = useRef<HTMLDivElement>(null);
@@ -130,6 +133,40 @@ export function DeviceMenu({
           </span>
         </span>
       </label>
+
+      {(blur.available || blur.native.kind === 'readonly') && (
+        <label
+          className={`mt-4 flex items-start gap-2.5 border-t border-border pt-3.5 ${
+            blur.available ? 'cursor-pointer' : ''
+          }`}
+        >
+          <input
+            type="checkbox"
+            checked={blur.mode !== 'off' || (blur.native.kind !== 'none' && blur.native.enabled)}
+            onChange={() => void blur.toggle()}
+            // Read-only platform blur can be reported but not switched by a
+            // web page — only macOS Control Center can change it.
+            disabled={!blur.available || blur.loading}
+            className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-accent)] disabled:opacity-50"
+          />
+          <span>
+            <span className="block text-sm font-medium">
+              Blur my background
+              {blur.loading && <span className="ml-1.5 text-xs text-muted">loading…</span>}
+            </span>
+            <span className="mt-0.5 block text-xs leading-relaxed text-muted">
+              {blur.native.kind === 'readonly'
+                ? 'Controlled by your system camera settings.'
+                : blur.mode === 'native'
+                  ? 'Handled by your camera — no extra processing.'
+                  : 'Downloads about 400 KB the first time and uses your GPU.'}
+            </span>
+            {blur.error && (
+              <span className="mt-1 block text-xs text-danger">{blur.error}</span>
+            )}
+          </span>
+        </label>
+      )}
 
       <label className="mt-3 flex cursor-pointer items-start gap-2.5">
         <input

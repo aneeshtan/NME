@@ -19,6 +19,7 @@ import { Chat } from '../room/Chat';
 import { useMessaging } from '../room/useMessaging';
 import { useMutedSpeechDetector } from '../room/useMutedSpeechDetector';
 import { usePresenceAlerts } from '../room/usePresenceAlerts';
+import { useBackgroundBlur } from '../room/useBackgroundBlur';
 import { REACTIONS } from '../lib/messaging';
 import { buildMeetingUrl, readRoomKeyFromUrl } from '../lib/e2ee';
 import { loadDevicePrefs, saveDevicePrefs, saveDisplayName } from '../lib/storage';
@@ -69,6 +70,7 @@ export default function Meeting({ roomId }: Props) {
   useAudioOnly(room, audioOnly);
 
   const notices = usePresenceAlerts(room, presenceSound);
+  const blur = useBackgroundBlur(room, room?.localParticipant.isCameraEnabled ?? false);
 
   const micLive = room?.localParticipant.isMicrophoneEnabled ?? false;
   const speakingWhileMuted = useMutedSpeechDetector(
@@ -409,6 +411,7 @@ export default function Meeting({ roomId }: Props) {
               onToggleWarnWhenMuted={() => setWarnWhenMuted((on) => !on)}
               presenceSound={presenceSound}
               onTogglePresenceSound={() => setPresenceSound((on) => !on)}
+              blur={blur}
               onClose={() => setSettingsOpen(false)}
             />
           )}

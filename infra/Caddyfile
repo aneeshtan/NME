@@ -93,6 +93,14 @@
 		}
 	}
 
+	# Segmentation model for background blur. Content-stable and only fetched
+	# when a user enables blur, so it is cached hard.
+	handle /models/* {
+		header Cache-Control "public, max-age=2592000, immutable"
+		root * /srv
+		file_server
+	}
+
 	# ── Static assets ──
 	# Vite emits content-hashed filenames, so these are immutable forever.
 	handle /assets/* {

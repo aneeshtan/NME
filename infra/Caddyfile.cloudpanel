@@ -60,6 +60,12 @@
 		}
 	}
 
+	handle /models/* {
+		header Cache-Control "public, max-age=2592000, immutable"
+		root * /srv
+		file_server
+	}
+
 	# Content-hashed filenames — immutable forever.
 	handle /assets/* {
 		header Cache-Control "public, max-age=31536000, immutable"
