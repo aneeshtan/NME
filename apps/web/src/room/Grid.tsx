@@ -65,9 +65,9 @@ export function Grid({ room, version, screenShare }: Props) {
   const columns = columnsFor(participants.length);
 
   return (
-    <div className="video-grid" data-columns={columns}>
+    <div className="video-grid" data-columns={columns} data-count={participants.length}>
       {participants.map((participant) => (
-        <div key={participant.sid} className="aspect-video min-h-0 w-full">
+        <div key={participant.sid} className="video-tile">
           <VideoTile
             {...tileState(participant)}
             isLocal={participant === room.localParticipant}

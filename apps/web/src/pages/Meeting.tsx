@@ -218,7 +218,8 @@ export default function Meeting({ roomId }: Props) {
         </div>
       )}
 
-      <div className="flex min-h-0 flex-1">
+      {/* `relative` anchors the participants overlay on small screens. */}
+      <div className="relative flex min-h-0 flex-1">
         <main className="min-w-0 flex-1 p-2 sm:p-3">
           <Grid
             room={room}
@@ -294,7 +295,7 @@ function FatalError({ message }: { message: string }) {
 function LeftScreen({ roomId, meetingUrl }: { roomId: string; meetingUrl: string }) {
   return (
     <div className="flex h-full flex-col">
-      <header className="px-5 py-5 sm:px-8">
+      <header className="pt-safe px-5 pb-5 sm:px-8">
         <Logo />
       </header>
       <div className="flex flex-1 flex-col items-center justify-center gap-6 px-6 pb-20 text-center">

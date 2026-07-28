@@ -47,7 +47,7 @@ export function Toolbar({
   onLeave,
 }: Props) {
   return (
-    <div className="flex items-center justify-center gap-2 px-3 py-3 sm:gap-3">
+    <div className="pb-safe px-safe flex items-center justify-center gap-2 pt-3 sm:gap-3">
       <ControlButton
         label={micEnabled ? 'Turn off microphone' : 'Turn on microphone'}
         pressed={!micEnabled}
@@ -96,7 +96,6 @@ export function Toolbar({
         pressed={participantsOpen}
         active
         onClick={onToggleParticipants}
-        className="hidden sm:inline-flex"
       >
         <span className="relative">
           <PeopleIcon className="h-5 w-5" />

@@ -19,7 +19,12 @@ export function Participants({ room, version, meetingUrl, onClose }: Props) {
 
   return (
     <aside
-      className="flex h-full w-full flex-col border-l border-border bg-surface sm:w-72"
+      /*
+       * A full-width side panel inside a flex row would crush the video area on
+       * a phone, so below `sm` it becomes an overlay instead and the grid keeps
+       * its full width underneath.
+       */
+      className="absolute inset-0 z-20 flex h-full w-full flex-col bg-surface sm:static sm:z-auto sm:w-72 sm:border-l sm:border-border"
       aria-label="Participants"
     >
       <header className="flex items-center justify-between px-4 py-3.5">

@@ -74,7 +74,11 @@ export const VideoTile = memo(function VideoTile({
 
   return (
     <div
-      className={`group relative overflow-hidden rounded-xl bg-surface transition-shadow duration-200 ${
+      // `h-full` is required, not decorative: the wrapper sets the tile's height
+      // (via aspect-ratio on desktop, or the grid row on a phone), and a block
+      // child does not inherit that — without it the tile collapses to its
+      // content height.
+      className={`group relative h-full overflow-hidden rounded-xl bg-surface transition-shadow duration-200 ${
         isSpeaking && !isScreenShare ? 'tile-speaking' : ''
       }`}
     >

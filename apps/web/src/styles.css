@@ -128,11 +128,63 @@
     grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 
-  @media (max-width: 640px) {
+  /*
+   * Tile box. On a wide screen a 16:9 tile matches the shape of the video and
+   * of the display, so the grid letterboxes neatly.
+   */
+  .video-tile {
+    aspect-ratio: 16 / 9;
+    width: 100%;
+    min-height: 0;
+  }
+
+  /*
+   * Portrait phones.
+   *
+   * A 16:9 tile inside a narrow portrait column is mostly empty space: the row
+   * is tall (1fr) but the tile only occupies 16:9 of the column width, so the
+   * grid ends up as small letterboxes separated by large gaps — and in a short
+   * tile the name gradient rides up over the avatar. Filling the row instead
+   * uses the screen properly; `object-cover` on the video crops rather than
+   * distorts.
+   */
+  @media (max-width: 640px) and (orientation: portrait) {
+    .video-tile {
+      aspect-ratio: auto;
+      height: 100%;
+    }
+
+    .video-grid {
+      /* Floor the row height so a crowded call scrolls instead of shrinking
+         every tile into uselessness. */
+      grid-auto-rows: minmax(7.5rem, 1fr);
+      align-content: start;
+      overflow-y: auto;
+    }
+
+    /*
+     * Two columns is the practical maximum on a phone — below roughly 150px a
+     * face is unrecognisable.
+     *
+     * Every `data-columns` variant is listed explicitly because the desktop
+     * rules above are attribute selectors (specificity 0,2,0) and a media query
+     * adds none of its own: a bare `.video-grid` override here would simply
+     * lose to them and silently keep the desktop column count.
+     */
+    .video-grid[data-columns='1'],
+    .video-grid[data-columns='2'],
     .video-grid[data-columns='3'],
     .video-grid[data-columns='4'],
     .video-grid[data-columns='5'] {
       grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    /* One or two people deserve the whole width each — side-by-side tiles on a
+       phone are needlessly small when there is only one other person. Declared
+       last so it wins the tie against the equally specific rules above. */
+    .video-grid[data-count='1'],
+    .video-grid[data-count='2'] {
+      grid-template-columns: minmax(0, 1fr);
     }
   }
 
@@ -149,4 +201,27 @@
   /* WCAG 2.2 target size minimum. */
   min-width: 44px;
   min-height: 44px;
+}
+
+/*
+ * Safe-area utilities.
+ *
+ * index.html opts into `viewport-fit=cover` so the app fills the display on
+ * notched phones — which also means content renders *underneath* the notch and
+ * the home indicator unless it is padded away from them. Without these, the
+ * bottom toolbar sits under the iOS home indicator and its buttons are hard to
+ * hit. `max()` keeps the ordinary padding on devices with no inset at all.
+ */
+@utility pb-safe {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+}
+
+@utility pt-safe {
+  padding-top: max(1.25rem, env(safe-area-inset-top));
+}
+
+@utility px-safe {
+  /* Landscape notches intrude from the side. */
+  padding-left: max(0.75rem, env(safe-area-inset-left));
+  padding-right: max(0.75rem, env(safe-area-inset-right));
 }

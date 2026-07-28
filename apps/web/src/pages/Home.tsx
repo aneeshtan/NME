@@ -69,7 +69,7 @@ export function Home() {
 
   return (
     <div className="flex min-h-full flex-col">
-      <header className="px-5 py-5 sm:px-8">
+      <header className="pt-safe px-5 pb-5 sm:px-8">
         <Logo />
       </header>
 
