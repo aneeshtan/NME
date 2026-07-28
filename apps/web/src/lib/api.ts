@@ -38,6 +38,14 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
+  // Only claim a JSON content type when a body is actually present. Fastify
+  // parses the body against the declared Content-Type, so a bodyless POST
+  // (e.g. create-room) that still sends `Content-Type: application/json` hits
+  // an empty string as JSON input and is rejected with
+  // FST_ERR_CTP_EMPTY_JSON_BODY before the route handler ever runs.
+  const headers = new Headers(init.headers);
+  if (init.body) headers.set('Content-Type', 'application/json');
+
   let response: Response;
   try {
     response = await fetch(`/api${path}`, {
@@ -45,7 +53,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       signal: controller.signal,
       // No cookies exist, and omitting them keeps the request simple (no preflight).
       credentials: 'omit',
-      headers: { 'Content-Type': 'application/json', ...init.headers },
+      headers,
     });
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') {
