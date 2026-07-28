@@ -492,6 +492,60 @@ for every deployment** — changing a hostname needs no rebuild.
 
 ---
 
+## Load testing and capacity
+
+The control plane is not the constraint and will not become one: measured at
+**~15,000 req/s** and **~13,400 token signatures/s**. Media is the only part of
+this stack that scales with participants, so the SFU is what to test and tune.
+
+### Tune the host first
+
+```bash
+sudo ./infra/tune-host.sh          # UDP buffers and connection backlog
+```
+
+File handles are raised per-container via `ulimits` in the compose file, so no
+host-level `ulimit` change is needed.
+
+### Run a real load test
+
+Install the LiveKit CLI, then — **from a different machine than the SFU**. Running
+it on the same host measures your own CPU and NIC twice and produces numbers
+that mean nothing.
+
+```bash
+# Start with one full room, matching MAX_PARTICIPANTS.
+lk load-test \
+  --url wss://sfu.nmetalk.com \
+  --api-key nme --api-secret "$LIVEKIT_API_SECRET" \
+  --room load-test --video-publishers 25 --subscribers 25
+
+# Then push until it degrades.
+lk load-test ... --video-publishers 150 --subscribers 150
+```
+
+### What to watch
+
+Watch **bandwidth, not CPU**. Egress is the ceiling on almost every VPS: roughly
+2 Mbps down per participant means a 6-person meeting is ~12 Mbps, and a hundred
+of them is ~1.2 Gbps — more than a 1 Gbps NIC can carry, and likely more than a
+monthly transfer allowance.
+
+LiveKit exposes Prometheus metrics on `:6789` inside the compose network. It is
+deliberately not published; scrape it from a sidecar or read it with
+`docker compose exec`.
+
+### Raising the ceilings
+
+`LIVEKIT_CPUS` and `LIVEKIT_MEMORY` in `.env`. The memory cap matters more than
+it looks: exceeding it does not slow the SFU down, it makes Docker kill the
+container and **every meeting on the host drops at once**. Set
+`LIVEKIT_MEMORY=0` to remove the cap once a load test has told you the real
+number.
+
+Beyond one machine, add SFU nodes against the same Redis — see
+[Scaling](#scaling). The control plane is stateless and already horizontal.
+
 ## Operations
 
 **Logs** — structured JSON via pino: `docker compose -f infra/docker-compose.yml logs -f server`

@@ -134,9 +134,28 @@ services:
       redis:
         condition: service_healthy
     networks: [nme]
+
+    # Each participant connection consumes file handles, and the default soft
+    # limit of 1024 is reached well before the SFU runs out of anything else.
+    # LiveKit's own guidance is 65535.
+    ulimits:
+      nofile:
+        soft: 65535
+        hard: 65535
+
     deploy:
       resources:
-        limits: { cpus: '4.0', memory: 2G }
+        limits:
+          # Deliberately generous, and worth understanding before lowering.
+          # Exceeding a hard memory cap does not degrade the SFU — Docker kills
+          # it, and *every meeting on the host drops at once*. That is the most
+          # likely hard failure in this stack, and it is a config value rather
+          # than a limit of the software.
+          #
+          # Set LIVEKIT_MEMORY=0 to remove the cap entirely once you trust the
+          # measured ceiling.
+          cpus: '${LIVEKIT_CPUS:-4.0}'
+          memory: ${LIVEKIT_MEMORY:-4G}
 
   redis:
     <<: *hardening
