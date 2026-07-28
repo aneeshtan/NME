@@ -175,13 +175,15 @@ function turnConfig() {
     credential,
     cloudflare: Object.freeze({ keyId: cfKeyId, apiToken: cfApiToken }),
     /**
-     * Credential lifetime. This is a genuine trade-off, not a tuning knob:
-     * the relay re-authenticates when an allocation is refreshed, so a
-     * credential that expires mid-call drops the media. It must therefore
-     * comfortably exceed the longest expected meeting, while a longer window
-     * also means a leaked credential stays usable for longer.
+     * Credential lifetime. A genuine trade-off, not a tuning knob: the relay
+     * re-authenticates whenever an allocation is refreshed, so a credential
+     * expiring mid-call drops that participant's media with no obvious cause.
+     *
+     * Defaulted to 12 hours so it comfortably outlives any realistic meeting.
+     * The cost of the longer window is small — a leaked credential can only be
+     * spent on relay bandwidth, never on the room or its contents.
      */
-    credentialTtl: integer('TURN_CREDENTIAL_TTL', 21_600, 300, 86_400),
+    credentialTtl: integer('TURN_CREDENTIAL_TTL', 43_200, 300, 86_400),
   };
 }
 

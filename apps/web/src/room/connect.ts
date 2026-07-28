@@ -137,19 +137,33 @@ function buildRoomOptions(
       red: true,
       audioPreset: { maxBitrate: 24_000 },
 
-      // Screen shares are mostly static text; prioritise sharpness over motion.
+      /**
+       * Screen share favours sharpness over frame rate — text has to stay
+       * legible. 15fps rather than the 5fps that suits purely static slides:
+       * scrolling a document or playing a video at 5fps reads as broken, and
+       * the bitrate ceiling still keeps this well below a camera stream.
+       */
       screenShareEncoding: {
         maxBitrate: 2_500_000,
-        maxFramerate: 5,
+        maxFramerate: 15,
         priority: 'high',
       },
       backupCodec: false,
     },
 
     // Recover a dropped connection instead of forcing a full rejoin.
+    /**
+     * Reconnect budget: roughly two minutes of exponential backoff.
+     *
+     * Deliberately generous. Across a long meeting a transient break is not
+     * unusual — a laptop sleeping, a handover from Wi-Fi to cellular, a VPN
+     * renegotiating, a brief ISP blip. A short budget turns any of those into a
+     * dropped call that the participant has to rejoin manually, which is far
+     * more disruptive than continuing to retry in the background.
+     */
     reconnectPolicy: {
       nextRetryDelayInMs: (context) =>
-        context.retryCount > 8 ? null : Math.min(300 * 2 ** context.retryCount, 8_000),
+        context.retryCount > 15 ? null : Math.min(300 * 2 ** context.retryCount, 10_000),
     },
 
     stopLocalTrackOnUnpublish: true,

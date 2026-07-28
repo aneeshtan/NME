@@ -7,59 +7,70 @@
  * steadily climbing memory in long calls.
  */
 import { memo, useEffect, useRef } from 'react';
-import type { Participant } from 'livekit-client';
 import { Track } from 'livekit-client';
 import { MicOffIcon } from '../components/icons';
 
+/**
+ * Every field here is a *value*, never a LiveKit object that carries mutable
+ * state. That is deliberate and load-bearing: this component is memoised, and
+ * LiveKit mutates `Participant` and `TrackPublication` in place — their
+ * references never change when a camera is toggled or a track republished.
+ * Reading that state during render would make `memo` compare identical props
+ * and skip the re-render, so a participant enabling their camera mid-meeting
+ * would simply never appear. Track identity and the muted flags are passed
+ * explicitly so the comparison sees real changes.
+ */
 interface Props {
-  participant: Participant;
   isLocal: boolean;
   isSpeaking: boolean;
+  name: string;
+  videoTrack: Track | undefined;
+  videoMuted: boolean;
+  audioTrack: Track | undefined;
+  audioMuted: boolean;
   /** Screen shares must not be mirrored or cropped. */
   source?: Track.Source;
 }
 
 export const VideoTile = memo(function VideoTile({
-  participant,
   isLocal,
   isSpeaking,
+  name,
+  videoTrack,
+  videoMuted,
+  audioTrack,
+  audioMuted,
   source = Track.Source.Camera,
 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
 
-  const videoPublication = participant.getTrackPublication(source);
-  const micPublication = participant.getTrackPublication(Track.Source.Microphone);
-
-  const videoTrack = videoPublication?.track;
-  const isVideoLive = Boolean(videoTrack) && videoPublication?.isMuted === false;
+  const isVideoLive = Boolean(videoTrack) && !videoMuted;
   const isScreenShare = source === Track.Source.ScreenShare;
 
   useEffect(() => {
     const element = videoRef.current;
-    if (!element || !videoTrack || videoPublication?.isMuted !== false) return;
+    if (!element || !videoTrack || videoMuted) return;
 
     videoTrack.attach(element);
     return () => {
       videoTrack.detach(element);
     };
-  }, [videoTrack, videoPublication?.isMuted]);
+  }, [videoTrack, videoMuted]);
 
   useEffect(() => {
     const element = audioRef.current;
     // Local audio is never played back — doing so creates an echo loop.
     if (!element || isLocal) return;
-    const audioTrack = micPublication?.track;
-    if (!audioTrack || micPublication?.isMuted !== false) return;
+    if (!audioTrack || audioMuted) return;
 
     audioTrack.attach(element);
     return () => {
       audioTrack.detach(element);
     };
-  }, [micPublication?.track, micPublication?.isMuted, isLocal]);
+  }, [audioTrack, audioMuted, isLocal]);
 
-  const name = participant.name || 'Guest';
-  const isMuted = micPublication?.isMuted !== false;
+  const isMuted = audioMuted;
 
   return (
     <div

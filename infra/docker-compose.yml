@@ -89,7 +89,7 @@ services:
       TURN_AUTH_SECRET: ${TURN_AUTH_SECRET:-}
       TURN_USERNAME: ${TURN_USERNAME:-}
       TURN_CREDENTIAL: ${TURN_CREDENTIAL:-}
-      TURN_CREDENTIAL_TTL: ${TURN_CREDENTIAL_TTL:-21600}
+      TURN_CREDENTIAL_TTL: ${TURN_CREDENTIAL_TTL:-43200}
     # Read-only root filesystem: the app writes nothing to disk, so anything
     # that tries to is a bug or an intrusion.
     read_only: true

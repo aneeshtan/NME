@@ -39,10 +39,9 @@ export function Grid({ room, version, screenShare }: Props) {
       <div className="flex h-full w-full flex-col gap-2 lg:flex-row">
         <div className="min-h-0 flex-1">
           <VideoTile
-            participant={screenShare.participant}
+            {...tileState(screenShare.participant, Track.Source.ScreenShare)}
             isLocal={screenShare.participant === room.localParticipant}
             isSpeaking={false}
-            source={Track.Source.ScreenShare}
           />
         </div>
         <div className="flex shrink-0 gap-2 overflow-x-auto lg:h-full lg:w-52 lg:flex-col lg:overflow-x-hidden lg:overflow-y-auto">
@@ -52,7 +51,7 @@ export function Grid({ room, version, screenShare }: Props) {
               className="aspect-video w-32 shrink-0 lg:w-full"
             >
               <VideoTile
-                participant={participant}
+                {...tileState(participant)}
                 isLocal={participant === room.localParticipant}
                 isSpeaking={speakingIds.has(participant.identity)}
               />
@@ -70,7 +69,7 @@ export function Grid({ room, version, screenShare }: Props) {
       {participants.map((participant) => (
         <div key={participant.sid} className="aspect-video min-h-0 w-full">
           <VideoTile
-            participant={participant}
+            {...tileState(participant)}
             isLocal={participant === room.localParticipant}
             isSpeaking={speakingIds.has(participant.identity)}
           />
@@ -78,6 +77,29 @@ export function Grid({ room, version, screenShare }: Props) {
       ))}
     </div>
   );
+}
+
+/**
+ * Reads a participant's mutable LiveKit state into plain values for the tile.
+ *
+ * This runs on every version bump, which is exactly what makes the memoised
+ * tile correct: LiveKit mutates participants and publications in place, so the
+ * only way `memo` can observe a camera being toggled is if the changed values
+ * arrive as new props.
+ */
+function tileState(participant: Participant, source: Track.Source = Track.Source.Camera) {
+  const videoPublication = participant.getTrackPublication(source);
+  const micPublication = participant.getTrackPublication(Track.Source.Microphone);
+
+  return {
+    name: participant.name || 'Guest',
+    videoTrack: videoPublication?.track,
+    // Absent publication means nothing is being sent — treated as muted.
+    videoMuted: videoPublication?.isMuted !== false,
+    audioTrack: micPublication?.track,
+    audioMuted: micPublication?.isMuted !== false,
+    source,
+  };
 }
 
 /**
