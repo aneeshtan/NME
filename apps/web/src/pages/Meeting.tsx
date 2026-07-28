@@ -173,6 +173,7 @@ export default function Meeting({ roomId }: Props) {
         )}
         <PreJoin
           roomId={roomId}
+          meetingUrl={meetingUrl}
           connecting={status === 'connecting'}
           micEnabled={prefs.micEnabled}
           cameraEnabled={prefs.cameraEnabled}

@@ -10,9 +10,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Logo } from '../components/Logo';
 import { CameraIcon, CameraOffIcon, MicIcon, MicOffIcon, ShieldIcon } from '../components/icons';
 import { DISPLAY_NAME_MAX_LENGTH, loadDisplayName } from '../lib/storage';
+import { CopyLinkButton } from '../components/CopyLinkButton';
 
 interface Props {
   roomId: string;
+  /** Full shareable link, key included. Empty when the key is missing. */
+  meetingUrl: string;
   connecting: boolean;
   micEnabled: boolean;
   cameraEnabled: boolean;
@@ -23,6 +26,7 @@ interface Props {
 
 export function PreJoin({
   roomId,
+  meetingUrl,
   connecting,
   micEnabled,
   cameraEnabled,
@@ -140,7 +144,15 @@ export function PreJoin({
             Meeting <span className="font-mono text-fg">{roomId}</span>
           </p>
 
-          <label htmlFor="displayName" className="mt-7 block text-sm font-medium">
+          {/*
+            The most likely reason to be on this screen having just created a
+            meeting is to send the link to someone. Without this, the only copy
+            control lives behind the in-call participants panel, which means
+            joining first just to invite people.
+          */}
+          {meetingUrl && <CopyLinkButton url={meetingUrl} className="mt-4 w-full" />}
+
+          <label htmlFor="displayName" className="mt-6 block text-sm font-medium">
             Your name
           </label>
           <input
