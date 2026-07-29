@@ -34,7 +34,7 @@ services:
       dockerfile: apps/web/Dockerfile
       args:
         # Stamped into the og:image tag; see apps/web/Dockerfile.
-        APP_DOMAIN: ${APP_DOMAIN}
+        APP_DOMAIN: ${APP_DOMAIN:?APP_DOMAIN is empty - run Compose from the repo root WITH --env-file .env (it resolves .env next to the compose file, i.e. infra/, not your shell's directory)}
     ports:
       # Standalone: bind the public ports and let Caddy own TLS.
       # Behind another reverse proxy (CloudPanel, Plesk, an existing nginx):
@@ -45,7 +45,7 @@ services:
       - '${HTTPS_BIND:-0.0.0.0:443}:443/udp' # HTTP/3
     environment:
       APP_DOMAIN: ${APP_DOMAIN}
-      LIVEKIT_DOMAIN: ${LIVEKIT_DOMAIN}
+      LIVEKIT_DOMAIN: ${LIVEKIT_DOMAIN:?LIVEKIT_DOMAIN is empty - run Compose from the repo root WITH --env-file .env (it resolves .env next to the compose file, i.e. infra/, not your shell's directory)}
       ACME_EMAIL: ${ACME_EMAIL}
     volumes:
       # Which Caddyfile is mounted decides whether Caddy terminates TLS itself
@@ -73,8 +73,8 @@ services:
       CORS_ORIGINS: https://${APP_DOMAIN}
       # Trust forwarded headers only from the compose bridge network.
       TRUST_PROXY: ${TRUST_PROXY:-172.16.0.0/12}
-      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
-      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:?LIVEKIT_API_KEY is empty - run Compose from the repo root WITH --env-file .env (it resolves .env next to the compose file, i.e. infra/, not your shell's directory)}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?LIVEKIT_API_SECRET is empty - run Compose from the repo root WITH --env-file .env (it resolves .env next to the compose file, i.e. infra/, not your shell's directory)}
       LIVEKIT_HOST: http://livekit:7880
       PUBLIC_LIVEKIT_URL: wss://${LIVEKIT_DOMAIN}
       LIVEKIT_WEBHOOK_ENABLED: 'true'
@@ -160,7 +160,9 @@ services:
   redis:
     <<: *hardening
     image: redis:7-alpine
-    # The `:?` guard below is not decoration. With REDIS_PASSWORD empty, the
+    # The `:?` guard below is not decoration, and it fires most often not
+    # because the password is missing but because Compose never loaded .env
+    # at all. With REDIS_PASSWORD empty, the
     # folded command becomes `--requirepass --maxmemory 256mb …`, so
     # `--requirepass` swallows `--maxmemory` as its value and `256mb` is left as
     # a stray argument. Redis exits immediately, the healthcheck never passes,
@@ -170,7 +172,7 @@ services:
     # time, naming the fix.
     command: >
       redis-server
-      --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is empty in .env - generate one with: npm run keys}
+      --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is empty - either it is unset in .env (generate with: npm run keys), or run Compose from the repo root WITH --env-file .env (it resolves .env next to the compose file, i.e. infra/, not your shell's directory)}
       --maxmemory 256mb
       --maxmemory-policy allkeys-lru
       --save ""
