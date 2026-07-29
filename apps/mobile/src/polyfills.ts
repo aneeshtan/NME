@@ -14,27 +14,31 @@
  * that reaches for `crypto` at import time would otherwise lose the race.
  */
 import { registerGlobals } from '@livekit/react-native';
-import QuickCrypto from 'react-native-quick-crypto';
+import { getRandomValues } from 'expo-crypto';
+import { nobleSubtle } from './lib/webcrypto';
 
 registerGlobals();
 
 /**
- * `crypto.subtle` backed by native OpenSSL rather than a JavaScript
- * implementation.
+ * `crypto`, assembled from a pure-JavaScript `subtle` and the platform CSPRNG.
  *
- * This matters beyond speed. A pure-JS AES-GCM runs on Hermes at a speed that
- * makes per-message encryption visible in the UI, and — more seriously — is
- * far harder to keep free of timing side channels than a library built for the
- * purpose.
+ * The obvious choice here was react-native-quick-crypto, backed by native
+ * OpenSSL. It cannot be built: its published nitrogen-generated C++ includes a
+ * NitroModules header that no released version of that package provides, and
+ * every quick-crypto release carries it. See `lib/webcrypto.ts`.
  *
- * The cast is unavoidable: quick-crypto's `Subtle` accepts a wider set of
- * buffer types than the DOM's `SubtleCrypto` declares, so the shapes are
- * compatible at runtime but not assignable at the type level. It is done once,
- * here, rather than at each call site.
+ * Randomness deliberately does *not* come from JavaScript. Every room key and
+ * every AES-GCM nonce in this app is drawn from `getRandomValues`, and a weak
+ * source would undo the encryption far more completely than any weakness in
+ * the cipher — so it comes from the operating system, through expo-crypto.
  */
 if (typeof globalThis.crypto === 'undefined' || !globalThis.crypto.subtle) {
   Object.defineProperty(globalThis, 'crypto', {
-    value: QuickCrypto as unknown as Crypto,
+    value: {
+      subtle: nobleSubtle,
+      getRandomValues: (array: ArrayBufferView | null) =>
+        array === null ? array : getRandomValues(array as Uint8Array),
+    } as unknown as Crypto,
     configurable: true,
     writable: true,
   });
