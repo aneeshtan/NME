@@ -22,6 +22,7 @@ import { parseMeetingInput } from '@nme/core';
 import { copyText } from '../components/CopyLinkButton';
 import { navigate } from '../lib/router';
 import { saveHostKey } from '../lib/storage';
+import { requestNoticePermission } from '../room/useBackgroundNotice';
 
 /** The project site, published from `docs/` in the repository. */
 const SITE = 'https://aneeshtan.github.io/NME';
@@ -47,6 +48,15 @@ export function Home() {
       // Derived, not requested: the id is a function of the key, so the link
       // only has to carry the key.
       const roomId = await deriveRoomId(key);
+      /**
+       * Asked for here rather than on page load, and only when approval is
+       * required — ticking that box is a statement that arrivals matter, which
+       * is exactly and only when a background alert is worth a prompt. It also
+       * has to happen inside this click: browsers reject a permission request
+       * with no user gesture behind it, and the refusal is sticky.
+       */
+      if (requireApproval) await requestNoticePermission();
+
       const { hostKey } = await createRoomWithLobby(requireApproval, roomId);
 
       // Stored, never placed in the URL: the link gets forwarded, and a host

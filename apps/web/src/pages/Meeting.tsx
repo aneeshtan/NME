@@ -4,7 +4,7 @@
  * Lazy-loaded, so the ~200 KB LiveKit client and the E2EE worker are fetched
  * only when someone actually opens a meeting. The home page never pays for them.
  */
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ConnectionQuality } from 'livekit-client';
 import { PreJoin } from '../room/PreJoin';
 import { Grid } from '../room/Grid';
@@ -21,6 +21,7 @@ import { useMutedSpeechDetector } from '../room/useMutedSpeechDetector';
 import { usePresenceAlerts } from '../room/usePresenceAlerts';
 import { useBackgroundBlur } from '../room/useBackgroundBlur';
 import { useKnocks } from '../room/useKnocks';
+import { useBackgroundNotice } from '../room/useBackgroundNotice';
 import { useSpeakingTime } from '../room/useSpeakingTime';
 import { REACTIONS } from '@nme/core';
 import { buildShortMeetingUrl, deriveRoomId, readRoomKeyFromAnyUrl } from '@nme/core';
@@ -95,6 +96,40 @@ export default function Meeting({ roomId: routeRoomId }: Props) {
   }, [room]);
 
   const messaging = useMessaging(room, roomKey, chatOpen, handleMuteRequest);
+
+  /**
+   * Alerts for the two things that happen to you while you are looking at a
+   * different tab: someone arrives at the lobby, or someone says something.
+   * Both are invisible otherwise — a backgrounded tab paints nothing and is
+   * frequently muted, so the on-screen notice and the chime both miss.
+   */
+  const notice = useBackgroundNotice();
+  const waitingCount = knocks.pending.length;
+  const lastWaiting = useRef(0);
+  const lastUnread = useRef(0);
+
+  useEffect(() => {
+    if (waitingCount > lastWaiting.current) {
+      const latest = knocks.pending[knocks.pending.length - 1]?.displayName;
+      notice.notify({
+        tag: 'nme-knock',
+        title:
+          waitingCount === 1 && latest
+            ? `${latest} is waiting to join`
+            : `${waitingCount} people are waiting to join`,
+      });
+    }
+    lastWaiting.current = waitingCount;
+  }, [waitingCount, knocks.pending, notice]);
+
+  useEffect(() => {
+    if (messaging.unread > lastUnread.current) {
+      // No body: the sender's words were encrypted specifically to stay off
+      // screens like a lock screen, which is exactly where this can appear.
+      notice.notify({ tag: 'nme-chat', title: 'New message in the meeting' });
+    }
+    lastUnread.current = messaging.unread;
+  }, [messaging.unread, notice]);
   // Only hold the screen awake while actually in a call.
   useWakeLock(status === 'connected');
   useAudioOnly(room, audioOnly);
