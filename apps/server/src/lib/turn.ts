@@ -122,8 +122,14 @@ async function fetchCloudflareCredentials(
 
     if (!response.ok) {
       // The body may echo request details; log only the status so a token or
-      // credential can never reach the log through an error path.
-      log?.warn({ status: response.status }, 'cloudflare turn credential request failed');
+      // credential can never reach the log through an error path. The hint is
+      // derived from the status alone and adds no information from the
+      // response, so it stays on the right side of that line — while turning a
+      // bare number into the one sentence an operator actually needs.
+      log?.warn(
+        { status: response.status, hint: cloudflareFailureHint(response.status) },
+        'cloudflare turn credential request failed',
+      );
       return null;
     }
 
@@ -168,4 +174,34 @@ export function selectSecureIceServer(body: CloudflareIceResponse): IceServer | 
   }
 
   return null;
+}
+
+/**
+ * Turns a Cloudflare HTTP status into the cause an operator can act on.
+ *
+ * Relay failures are, by their nature, discovered by someone on a network that
+ * blocks direct media — often a person who cannot easily be asked to try
+ * things. So the one log line this produces has to carry the diagnosis, not
+ * just the symptom.
+ *
+ * The 404 is worth naming explicitly: the endpoint path is fixed and correct,
+ * so a 404 can only mean the key in the URL does not exist. In practice that is
+ * almost always the Cloudflare *account* ID sitting in CLOUDFLARE_TURN_KEY_ID
+ * — the two are both opaque hex strings, they appear on adjacent pages of the
+ * dashboard, and Cloudflare's own documentation uses both names for this path.
+ */
+function cloudflareFailureHint(status: number): string {
+  if (status === 401 || status === 403) {
+    return 'CLOUDFLARE_TURN_API_TOKEN was rejected — check the token and that it belongs to this TURN key';
+  }
+  if (status === 404) {
+    return 'CLOUDFLARE_TURN_KEY_ID not found — this must be the TURN key ID from Realtime > TURN Keys, not the account ID';
+  }
+  if (status === 429) {
+    return 'rate limited by Cloudflare';
+  }
+  if (status >= 500) {
+    return 'Cloudflare is failing; this should resolve without action';
+  }
+  return 'unexpected status from Cloudflare';
 }
