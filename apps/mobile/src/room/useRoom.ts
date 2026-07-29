@@ -16,7 +16,13 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { AudioSession } from '@livekit/react-native';
 import { ConnectionState, Room, RoomEvent } from 'livekit-client';
-import { ApiError, claimKnock, getConfig, joinRoom } from '@nme/core';
+import {
+  ApiError,
+  claimKnock,
+  getConfig,
+  joinRoom,
+  RelayUnavailableError,
+} from '@nme/core';
 import { connectToRoom, ROOM_UPDATE_EVENTS } from './connect';
 import { loadHostKey } from '../lib/storage';
 
@@ -163,7 +169,15 @@ export function useRoom(roomId: string, roomKey: string | null): UseRoomResult {
           });
 
           if (!('token' in relayCredentials) || !relayCredentials.iceServers?.length) {
-            throw directFailure;
+            /**
+             * The server issued no relay credentials, so there is nothing left
+             * to try. Rethrowing the direct failure here would report this as
+             * an ordinary "could not connect, try again" — which is actively
+             * misleading, because retrying on this network will fail every
+             * time. The remedy is to configure a relay, and only a distinct
+             * error can say so.
+             */
+            throw new RelayUnavailableError();
           }
 
           connected = await connectToRoom({
@@ -303,6 +317,18 @@ function isMediaPathFailure(cause: unknown): boolean {
 }
 
 function toRoomError(cause: unknown): RoomError {
+  if (cause instanceof RelayUnavailableError) {
+    return {
+      code: 'RELAY_UNAVAILABLE',
+      message:
+        'This network is blocking the direct connection to the meeting server, ' +
+        'and no relay is available to work around it. Ask the organiser to ' +
+        'enable a TURN relay, or join from a different network.',
+      // Retrying on this network cannot succeed, so do not invite it.
+      recoverable: false,
+    };
+  }
+
   if (cause instanceof ApiError) {
     const recoverable = cause.code === 'NETWORK' || cause.code === 'TIMEOUT';
     return { code: cause.code, message: cause.message, recoverable };

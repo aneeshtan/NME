@@ -55,6 +55,7 @@ export {
   getConfig,
   joinRoom,
   listKnocks,
+  RelayUnavailableError,
   resolveKnock,
 } from './api';
 export type {

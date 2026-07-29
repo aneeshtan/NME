@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { ConnectionState, Room, RoomEvent, Track } from 'livekit-client';
 import { connectToRoom, E2EEUnsupportedError, ROOM_UPDATE_EVENTS } from './connect';
-import { getConfig, joinRoom, claimKnock, ApiError } from '@nme/core';
+import { getConfig, joinRoom, claimKnock, ApiError, RelayUnavailableError } from '@nme/core';
 import { loadHostKey } from '../lib/storage';
 
 export type RoomStatus =
@@ -138,23 +138,7 @@ export function useRoom(roomId: string, roomKey: string | null): UseRoomResult {
         }
         setStatus('connecting');
 
-        let connected: Room;
-        try {
-          // Attempt 1: direct. No relay credentials are requested or held, so
-          // on a normal network no third party is ever contacted.
-          connected = await connectToRoom({
-            url: credentials.url,
-            token: credentials.token,
-            roomKey,
-            config,
-            peerConnectionTimeoutMs: DIRECT_CONNECT_TIMEOUT_MS,
-          });
-        } catch (directFailure) {
-          // A media-path failure is recoverable via relay; anything else (bad
-          // token, room full, unsupported browser) would fail identically on
-          // the second attempt, so it is rethrown rather than retried.
-          if (!isMediaPathFailure(directFailure)) throw directFailure;
-
+        const connectViaRelay = async (): Promise<Room> => {
           setStatus('relaying');
 
           // A fresh token is required, not an optimisation. The first token's
@@ -167,13 +151,18 @@ export function useRoom(roomId: string, roomKey: string | null): UseRoomResult {
           });
 
           if (!('token' in relayCredentials) || !relayCredentials.iceServers?.length) {
-            // No relay is configured on this deployment, so there is nothing
-            // further to try. Surface the original failure, which describes the
-            // actual problem.
-            throw directFailure;
+            /**
+             * The server issued no relay credentials, so there is nothing left
+             * to try. Rethrowing the direct failure here would report this as
+             * an ordinary "could not connect, try again" — which is actively
+             * misleading, because retrying on this network will fail every
+             * time. The remedy is to configure a relay, and only a distinct
+             * error can say so.
+             */
+            throw new RelayUnavailableError();
           }
 
-          connected = await connectToRoom({
+          const relayed = await connectToRoom({
             url: relayCredentials.url,
             token: relayCredentials.token,
             roomKey,
@@ -182,6 +171,32 @@ export function useRoom(roomId: string, roomKey: string | null): UseRoomResult {
           });
 
           setRelayed(true);
+          return relayed;
+        };
+
+        let connected: Room;
+
+        if (forceRelay()) {
+          // Skips the direct attempt entirely — see `forceRelay` below.
+          connected = await connectViaRelay();
+        } else {
+          try {
+            // Attempt 1: direct. No relay credentials are requested or held, so
+            // on a normal network no third party is ever contacted.
+            connected = await connectToRoom({
+              url: credentials.url,
+              token: credentials.token,
+              roomKey,
+              config,
+              peerConnectionTimeoutMs: DIRECT_CONNECT_TIMEOUT_MS,
+            });
+          } catch (directFailure) {
+            // A media-path failure is recoverable via relay; anything else (bad
+            // token, room full, unsupported browser) would fail identically on
+            // the second attempt, so it is rethrown rather than retried.
+            if (!isMediaPathFailure(directFailure)) throw directFailure;
+            connected = await connectViaRelay();
+          }
         }
 
         roomRef.current = connected;
@@ -242,6 +257,31 @@ export function useRoom(roomId: string, roomKey: string | null): UseRoomResult {
   );
 
   return { room, status, error, relayed, version, connect, leave };
+}
+
+/**
+ * `?relay=1` forces the relay path and skips the direct attempt.
+ *
+ * The relay only engages on networks that block direct media, which are
+ * precisely the networks you cannot get onto in order to test it. So the one
+ * code path that exists for people in difficulty is the one that never gets
+ * exercised, and breaks unnoticed. This flag makes it reachable from an
+ * ordinary desk.
+ *
+ * Safe to leave in production: it can only make a connection *more*
+ * restricted, never less, and the credentials it requests are the same
+ * short-lived ones any struggling participant would receive. The badge in the
+ * meeting still reports honestly that media is being relayed.
+ *
+ * Read from the query string rather than the fragment, which belongs entirely
+ * to the room key.
+ */
+function forceRelay(): boolean {
+  try {
+    return new URLSearchParams(window.location.search).get('relay') === '1';
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -320,6 +360,18 @@ function isMediaPathFailure(cause: unknown): boolean {
 }
 
 function toRoomError(cause: unknown): RoomError {
+  if (cause instanceof RelayUnavailableError) {
+    return {
+      code: 'RELAY_UNAVAILABLE',
+      message:
+        'This network is blocking the direct connection to the meeting server, ' +
+        'and no relay is available to work around it. Ask the organiser to ' +
+        'enable a TURN relay, or join from a different network.',
+      // Retrying on this network cannot succeed, so do not invite it.
+      recoverable: false,
+    };
+  }
+
   if (cause instanceof E2EEUnsupportedError) {
     return {
       code: 'E2EE_UNSUPPORTED',

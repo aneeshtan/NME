@@ -229,3 +229,30 @@ export function resolveKnock(
     },
   );
 }
+
+/**
+ * Raised when a direct media path failed and no relay was available to work
+ * around it.
+ *
+ * Worth its own type rather than reusing the direct failure. The two are
+ * indistinguishable to a user — both present as "it did not connect" — but
+ * they have completely different remedies: one is retried, the other needs the
+ * deployment to be configured. Collapsing them sends someone on a restricted
+ * network into an endless retry loop against a wall.
+ *
+ * The client cannot tell "no relay is configured" from "the relay provider
+ * could not be reached", because the server reports both as an absent
+ * `iceServers`. The message therefore covers both honestly rather than naming
+ * a cause it is guessing at.
+ */
+export class RelayUnavailableError extends Error {
+  readonly code = 'RELAY_UNAVAILABLE';
+
+  constructor() {
+    super(
+      'This network is blocking the direct connection to the meeting server, ' +
+        'and no relay is available to work around it.',
+    );
+    this.name = 'RelayUnavailableError';
+  }
+}
