@@ -1,0 +1,175 @@
+/**
+ * Native app configuration.
+ *
+ * Everything here that is not boilerplate exists for one of three reasons: a
+ * platform requires it before it will grant camera or microphone access, a
+ * store requires it before it will accept the build, or a meeting link has to
+ * open the app rather than the browser. Each is marked.
+ */
+import type { ExpoConfig } from 'expo/config';
+
+/**
+ * The deployment this build talks to. Compiled in rather than discovered from
+ * a link — see the note on `configureApi` in @nme/core for why letting an
+ * invitation choose the server would undo the admission model.
+ */
+const HOST = process.env.NME_HOST ?? 'nmetalk.com';
+const ORIGIN = `https://${HOST}`;
+
+const config: ExpoConfig = {
+  name: 'NME',
+  slug: 'nme',
+  version: '1.0.0',
+  orientation: 'default',
+  scheme: 'nme',
+  userInterfaceStyle: 'dark',
+
+  extra: { origin: ORIGIN },
+
+  ios: {
+    bundleIdentifier: 'com.nmetalk.app',
+    buildNumber: '1',
+    supportsTablet: true,
+
+    /**
+     * Universal Links. Tapping a meeting link opens the app with the full URL
+     * — fragment included, which is the only reason this works at all: the key
+     * lives after the `#`, and iOS hands the app `webpageURL` intact.
+     *
+     * Requires https://meet.example.com/.well-known/apple-app-site-association
+     * to be served (see infra/Caddyfile).
+     */
+    associatedDomains: [`applinks:${HOST}`],
+
+    infoPlist: {
+      // Without these two strings, iOS terminates the app the instant it asks
+      // for a camera or microphone. The wording is shown verbatim in the
+      // permission prompt.
+      NSCameraUsageDescription:
+        'NME uses your camera so other people in the meeting can see you. Video is encrypted on this device and cannot be read by the server.',
+      NSMicrophoneUsageDescription:
+        'NME uses your microphone so other people in the meeting can hear you. Audio is encrypted on this device and cannot be read by the server.',
+
+      /**
+       * Keeps audio flowing when the user switches apps or locks the screen.
+       * Without it iOS suspends the process and the call goes silent for
+       * everyone else — the single most common complaint about meeting apps
+       * that skip this.
+       */
+      UIBackgroundModes: ['audio'],
+
+      /**
+       * Export compliance. This app implements AES-GCM end-to-end encryption
+       * of user content, which is well beyond the "HTTPS only" exemption, so
+       * the honest answer is yes. See docs/store-submission.md — answering
+       * `false` here to skip a form would be a false declaration to a
+       * government agency, not a shortcut.
+       */
+      ITSAppUsesNonExemptEncryption: true,
+
+      // Mixed content is not needed; the app talks to exactly one https origin.
+      NSAppTransportSecurity: { NSAllowsArbitraryLoads: false },
+    },
+  },
+
+  android: {
+    package: 'com.nmetalk.app',
+    versionCode: 1,
+
+    /**
+     * Declared here rather than by `@config-plugins/react-native-webrtc`,
+     * which is the usual way to set these up. That plugin does three things:
+     * writes the iOS permission strings, disables bitcode (removed from Xcode
+     * years ago, so a no-op), and declares this list. All three are done
+     * explicitly above and below, which drops a dependency that trails each
+     * Expo SDK release by a version and would otherwise block upgrades.
+     *
+     * One deliberate omission: the plugin also requests SYSTEM_ALERT_WINDOW,
+     * the "draw over other apps" permission. NME never draws over anything, and
+     * it is among the permissions Play Store review treats as high-risk — so
+     * asking for it would cost scrutiny and buy nothing.
+     */
+    permissions: [
+      'android.permission.CAMERA',
+      'android.permission.RECORD_AUDIO',
+      // Lets the app route audio to the earpiece, speaker, or a headset, and
+      // duck other apps. Without it the call plays through the wrong output.
+      'android.permission.MODIFY_AUDIO_SETTINGS',
+      'android.permission.INTERNET',
+      'android.permission.ACCESS_NETWORK_STATE',
+      // Bluetooth headsets on Android 12+.
+      'android.permission.BLUETOOTH',
+      'android.permission.BLUETOOTH_CONNECT',
+      // Keeps the screen on mid-call; see the keep-awake hook in the room.
+      'android.permission.WAKE_LOCK',
+    ],
+
+    /**
+     * Permissions Expo's template declares that this app has no business
+     * holding.
+     *
+     * Storage: NME writes nothing to disk but a display name, so asking for
+     * access to the user's files would be untrue — and, from an app that has
+     * just asked for the camera and the microphone, alarming.
+     *
+     * SYSTEM_ALERT_WINDOW ("display over other apps"): declared in the
+     * template's *main* manifest, so without this it ships to Play Store
+     * reviewers in the release build, where it is one of the permissions that
+     * draws the most scrutiny. React Native declares it again in its debug
+     * source set, which is the only build that actually needs it — the dev
+     * menu overlay — and that copy is unaffected by this list.
+     */
+    blockedPermissions: [
+      'android.permission.READ_EXTERNAL_STORAGE',
+      'android.permission.WRITE_EXTERNAL_STORAGE',
+      'android.permission.SYSTEM_ALERT_WINDOW',
+    ],
+
+    /**
+     * App Links, the Android half of the same story. `autoVerify` is what makes
+     * the link open the app silently instead of showing a chooser, and it
+     * depends on /.well-known/assetlinks.json being reachable over https.
+     */
+    intentFilters: [
+      {
+        action: 'VIEW',
+        autoVerify: true,
+        data: [
+          // The short link is a bare fragment on the root path, so the root is
+          // what has to be claimed. `/r/*` covers links shared before the URL
+          // was shortened.
+          { scheme: 'https', host: HOST, pathPrefix: '/r/' },
+          { scheme: 'https', host: HOST, path: '/' },
+        ],
+        category: ['BROWSABLE', 'DEFAULT'],
+      },
+    ],
+  },
+
+  plugins: [
+    '@livekit/react-native-expo-plugin',
+    [
+      'expo-build-properties',
+      {
+        ios: {
+          /**
+           * The floor Expo SDK 57 enforces. Worth stating plainly rather than
+           * treating as a formality: it excludes the iPhone 8 and X, which is
+           * a real if small population — but WebRTC on those devices decodes
+           * several simulcast layers in software and runs hot enough to
+           * thermally throttle mid-meeting, so the experience they would get
+           * is not one worth shipping.
+           */
+          deploymentTarget: '16.4',
+        },
+        android: {
+          minSdkVersion: 24,
+          compileSdkVersion: 36,
+          targetSdkVersion: 36,
+        },
+      },
+    ],
+  ],
+};
+
+export default config;

@@ -1,0 +1,36 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+
+    /**
+     * No DOM. This package runs unchanged in a browser, in React Native's
+     * Hermes engine, and in Node under vitest — so anything reachable only
+     * through `window` or `document` must not compile here. Removing the DOM
+     * lib is what actually enforces that; a convention would not survive the
+     * first hurried edit.
+     *
+     * `WebWorker` is included solely for the ambient `crypto`, `TextEncoder`,
+     * and `URL` declarations, which are genuinely present on every target.
+     */
+    "lib": ["ES2023", "WebWorker"],
+
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "exactOptionalPropertyTypes": true,
+    "verbatimModuleSyntax": true,
+
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src"]
+}

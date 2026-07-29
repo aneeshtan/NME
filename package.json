@@ -8,20 +8,24 @@
     "node": ">=22"
   },
   "workspaces": [
+    "packages/*",
     "apps/server",
-    "apps/web"
+    "apps/web",
+    "apps/mobile"
   ],
   "scripts": {
     "dev": "npm run dev --workspaces --if-present",
     "dev:server": "npm run dev -w @nme/server",
     "dev:web": "npm run dev -w @nme/web",
-    "build": "npm run build -w @nme/server && npm run build -w @nme/web",
+    "build": "npm run build -w @nme/core && npm run build -w @nme/server && npm run build -w @nme/web",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
-    "keys": "node scripts/gen-keys.mjs"
+    "keys": "node scripts/gen-keys.mjs",
+    "dev:mobile": "npm run start -w @nme/mobile"
   },
   "overrides": {
-    "brace-expansion": "^2.0.2",
-    "minimatch": "^3.1.2"
+    "brace-expansion": "^5.0.8",
+    "minimatch": "^10.1.1",
+    "uuid": "^14.0.1"
   }
 }

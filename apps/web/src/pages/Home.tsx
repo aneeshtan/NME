@@ -4,9 +4,9 @@
 import { useCallback, useRef, useState } from 'react';
 import { Logo } from '../components/Logo';
 import { ArrowRightIcon, ShieldIcon } from '../components/icons';
-import { createRoomWithLobby, ApiError } from '../lib/api';
-import { buildShortMeetingUrl, deriveRoomId, generateRoomKey } from '../lib/e2ee';
-import { parseMeetingInput } from '../lib/room';
+import { createRoomWithLobby, ApiError } from '@nme/core';
+import { buildShortMeetingUrl, deriveRoomId, generateRoomKey } from '@nme/core';
+import { parseMeetingInput } from '@nme/core';
 import { copyText } from '../components/CopyLinkButton';
 import { navigate } from '../lib/router';
 import { saveHostKey } from '../lib/storage';

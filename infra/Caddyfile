@@ -93,6 +93,31 @@
 		}
 	}
 
+	# ── Native app association ───────────────────────────────────────────────
+	#
+	# A Universal Link or App Link only works if the *domain* vouches for the
+	# app; the app claiming the domain is just half of it. These two documents
+	# are that half, and they must be reachable over https with no redirect and
+	# no authentication — Apple and Google both fetch them from their own
+	# infrastructure, not from the user's device.
+	#
+	# They are served ahead of the SPA handler on purpose. The catch-all below
+	# rewrites unknown paths to index.html, which would answer both of these
+	# with a page of HTML and leave every meeting link opening in the browser.
+	#
+	# The documents themselves live in apps/web/public/.well-known/ and are
+	# copied into the build verbatim; both must be filled in before publishing
+	# (see docs/store-submission.md). Left as shipped, they fail verification
+	# and links fall back to the browser — a working meeting, just not one that
+	# opens the app.
+	handle /.well-known/* {
+		root * /srv
+		# Apple requires `application/json` and will reject the document without
+		# it. The file has no extension, so nothing else would infer it.
+		header Content-Type "application/json"
+		file_server
+	}
+
 	# Segmentation model for background blur. Content-stable and only fetched
 	# when a user enables blur, so it is cached hard.
 	handle /models/* {

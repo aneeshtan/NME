@@ -12,7 +12,7 @@ import {
   sealMessage,
   type PollChoice,
   type ReactionEmoji,
-} from '../lib/messaging';
+} from '@nme/core';
 
 export interface ChatEntry {
   id: string;

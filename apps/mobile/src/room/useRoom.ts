@@ -1,16 +1,23 @@
 /**
  * Room lifecycle as a React hook.
  *
- * LiveKit's `Room` is an event emitter holding authoritative mutable state.
- * Mirroring all of it into React state would mean copying dozens of fields on
- * every event; instead a version counter forces a re-render and components read
- * from the live objects. That keeps the hot path (a track subscription
- * mid-call) to a single integer bump rather than a deep clone.
+ * The twin of `apps/web/src/room/useRoom.ts`, and intentionally so: the join
+ * sequence — knock, wait for admission, try direct, fall back to relay — is the
+ * part of this app with the most ways to be subtly wrong, and the two clients
+ * have to make the same decisions or a meeting will admit one and not the
+ * other. Changes to the sequence belong in both files.
+ *
+ * Two differences, both forced by the platform:
+ *   - The host key is read asynchronously, because AsyncStorage is.
+ *   - There is no E2EE-unsupported case. On the web a browser may lack
+ *     insertable streams; here the frame cryptor is compiled into the binary,
+ *     so if the app runs at all, it can encrypt.
  */
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { ConnectionState, Room, RoomEvent, Track } from 'livekit-client';
-import { connectToRoom, E2EEUnsupportedError, ROOM_UPDATE_EVENTS } from './connect';
-import { getConfig, joinRoom, claimKnock, ApiError } from '@nme/core';
+import { AudioSession } from '@livekit/react-native';
+import { ConnectionState, Room, RoomEvent } from 'livekit-client';
+import { ApiError, claimKnock, getConfig, joinRoom } from '@nme/core';
+import { connectToRoom, ROOM_UPDATE_EVENTS } from './connect';
 import { loadHostKey } from '../lib/storage';
 
 export type RoomStatus =
@@ -27,22 +34,17 @@ export type RoomStatus =
 
 /**
  * How long to wait for a direct media path before falling back to the relay.
- *
- * Shorter than LiveKit's 15s default: on a firewalled network the direct
- * attempt is hopeless, and this window is pure dead time before the connection
- * that will actually work. Long enough to absorb a slow mobile handshake.
+ * Generous enough for a slow cellular handshake, short enough that a user on a
+ * firewalled corporate Wi-Fi is not left watching a spinner.
  */
 const DIRECT_CONNECT_TIMEOUT_MS = 8_000;
 
-/** How often a waiting joiner asks whether they have been admitted. */
 const KNOCK_POLL_MS = 2_000;
-/** Give up after this long rather than waiting on a host who never returns. */
 const KNOCK_TIMEOUT_MS = 5 * 60_000;
 
 export interface RoomError {
   code: string;
   message: string;
-  /** Whether retrying could plausibly succeed. */
   recoverable: boolean;
 }
 
@@ -52,7 +54,6 @@ export interface UseRoomResult {
   error: RoomError | null;
   /** True when media is travelling via a TURN relay rather than direct. */
   relayed: boolean;
-  /** Bumps whenever LiveKit emits something that changes the rendered output. */
   version: number;
   connect: (displayName: string) => Promise<void>;
   leave: () => void;
@@ -62,8 +63,6 @@ export function useRoom(roomId: string, roomKey: string | null): UseRoomResult {
   const [status, setStatus] = useState<RoomStatus>('idle');
   const [error, setError] = useState<RoomError | null>(null);
   const [room, setRoom] = useState<Room | null>(null);
-  // Surfaced in the UI: a participant is entitled to know their media is
-  // travelling through a relay rather than straight to the SFU.
   const [relayed, setRelayed] = useState(false);
   const roomRef = useRef<Room | null>(null);
   const connectingRef = useRef(false);
@@ -75,16 +74,16 @@ export function useRoom(roomId: string, roomKey: string | null): UseRoomResult {
     roomRef.current = null;
     setRoom(null);
     setStatus('left');
-    // Cleared so a later rejoin from a different network cannot inherit a stale
-    // "relayed" badge and misreport how the media is actually travelling.
     setRelayed(false);
     void current?.disconnect();
+    // Hands the audio route back to the system. Skipping this leaves the phone
+    // in call mode — media from other apps stays quiet and routed to the
+    // earpiece until something else claims the session.
+    void AudioSession.stopAudioSession();
   }, []);
 
   const connect = useCallback(
     async (displayName: string) => {
-      // Double-invoked effects in StrictMode, and impatient double-clicks, must
-      // not open two signaling sessions.
       if (connectingRef.current || roomRef.current) return;
       if (!roomKey) {
         setError({
@@ -102,16 +101,20 @@ export function useRoom(roomId: string, roomKey: string | null): UseRoomResult {
       setError(null);
 
       try {
+        /**
+         * Claims the audio route before any track is published. Doing it after
+         * connecting means the first second of the call plays through the
+         * wrong output on iOS, which sounds like a broken app rather than a
+         * timing detail.
+         */
+        await AudioSession.startAudioSession();
+
+        const hostKey = await loadHostKey(roomId);
         const [config, initial] = await Promise.all([
           getConfig(),
-          // A stored host key admits the creator without knocking on their own
-          // meeting; everyone else waits.
-          joinRoom(roomId, displayName, {
-            ...(loadHostKey(roomId) ? { hostKey: loadHostKey(roomId)! } : {}),
-          }),
+          joinRoom(roomId, displayName, hostKey ? { hostKey } : {}),
         ]);
 
-        // Lobby room: no token yet. Poll until the host decides.
         let credentials: Awaited<ReturnType<typeof claimKnock>> | typeof initial = initial;
         if ('status' in initial && initial.status === 'waiting') {
           setStatus('waiting');
@@ -119,11 +122,7 @@ export function useRoom(roomId: string, roomKey: string | null): UseRoomResult {
         }
 
         if ('status' in credentials && credentials.status === 'denied') {
-          setError({
-            code: 'DENIED',
-            message: 'The host did not let you in.',
-            recoverable: false,
-          });
+          setError({ code: 'DENIED', message: 'The host did not let you in.', recoverable: false });
           setStatus('failed');
           return;
         }
@@ -150,26 +149,20 @@ export function useRoom(roomId: string, roomKey: string | null): UseRoomResult {
             peerConnectionTimeoutMs: DIRECT_CONNECT_TIMEOUT_MS,
           });
         } catch (directFailure) {
-          // A media-path failure is recoverable via relay; anything else (bad
-          // token, room full, unsupported browser) would fail identically on
-          // the second attempt, so it is rethrown rather than retried.
           if (!isMediaPathFailure(directFailure)) throw directFailure;
 
           setStatus('relaying');
 
-          // A fresh token is required, not an optimisation. The first token's
-          // identity was already burned as a replay nonce the moment LiveKit
-          // registered the participant, so reusing it would trip this app's own
-          // replay defence and get the retry evicted.
+          // A fresh token, not an optimisation: the first token's identity was
+          // burned as a replay nonce the moment LiveKit registered the
+          // participant, so reusing it would trip this app's own replay
+          // defence and get the retry evicted.
           const relayCredentials = await joinRoom(roomId, displayName, {
             relay: true,
-            ...(loadHostKey(roomId) ? { hostKey: loadHostKey(roomId)! } : {}),
+            ...(hostKey ? { hostKey } : {}),
           });
 
           if (!('token' in relayCredentials) || !relayCredentials.iceServers?.length) {
-            // No relay is configured on this deployment, so there is nothing
-            // further to try. Surface the original failure, which describes the
-            // actual problem.
             throw directFailure;
           }
 
@@ -191,6 +184,7 @@ export function useRoom(roomId: string, roomKey: string | null): UseRoomResult {
         setError(toRoomError(cause));
         setStatus('failed');
         roomRef.current = null;
+        void AudioSession.stopAudioSession();
       } finally {
         connectingRef.current = false;
       }
@@ -198,8 +192,6 @@ export function useRoom(roomId: string, roomKey: string | null): UseRoomResult {
     [roomId, roomKey],
   );
 
-  // Track LiveKit's own connection state so the UI can show a reconnect banner
-  // rather than appearing frozen.
   useEffect(() => {
     if (!room) return;
 
@@ -222,6 +214,7 @@ export function useRoom(roomId: string, roomKey: string | null): UseRoomResult {
     const onDisconnected = () => {
       roomRef.current = null;
       setStatus((previous) => (previous === 'left' ? previous : 'left'));
+      void AudioSession.stopAudioSession();
     };
 
     room.on(RoomEvent.ConnectionStateChanged, onStateChange);
@@ -232,11 +225,14 @@ export function useRoom(roomId: string, roomKey: string | null): UseRoomResult {
     };
   }, [room]);
 
-  // Release the camera and microphone if the component unmounts for any reason.
+  // Release the camera, microphone, and audio session if this unmounts for any
+  // reason. On a phone a leaked camera shows as a recording indicator the user
+  // cannot explain, which reads as spyware.
   useEffect(
     () => () => {
       void roomRef.current?.disconnect();
       roomRef.current = null;
+      void AudioSession.stopAudioSession();
     },
     [],
   );
@@ -275,19 +271,11 @@ function useRoomVersion(room: Room | null): number {
 }
 
 /**
- * Distinguishes "the media path is blocked" from failures a relay cannot fix.
- *
- * Retrying the wrong class of error would double every genuine failure's
- * latency and issue relay credentials to clients that have no use for them.
- * E2EE support and API-level rejections (room full, invalid name, rate limit)
- * are deterministic — they will fail the same way on a second attempt.
- */
-/**
  * Polls until the host admits, denies, or the joiner gives up.
  *
- * Polling is the honest option here: pushing a verdict would require the
- * waiting client to already hold a connection into the room, which is exactly
- * what the lobby is withholding.
+ * Polling is the honest option: pushing a verdict would require the waiting
+ * client to already hold a connection into the room, which is precisely what
+ * the lobby is withholding.
  */
 async function awaitAdmission(
   roomId: string,
@@ -303,32 +291,18 @@ async function awaitAdmission(
   }
 }
 
+/**
+ * Distinguishes "the media path is blocked" from failures a relay cannot fix.
+ * Retrying the wrong class of error would double every genuine failure's
+ * latency and hand relay credentials to clients with no use for them.
+ */
 function isMediaPathFailure(cause: unknown): boolean {
-  if (cause instanceof E2EEUnsupportedError) return false;
   if (cause instanceof ApiError) return false;
-
-  // Permission denial is a local device problem; no transport change helps.
-  if (cause instanceof Error && /permission|denied|NotAllowed/i.test(cause.message)) {
-    return false;
-  }
-
-  // LiveKit surfaces a blocked media path as a connection/timeout error once
-  // the peer connection budget elapses. Anything else unrecognised is treated
-  // as retryable: a spurious relay attempt costs one request, whereas failing
-  // to retry strands the user this feature exists to serve.
+  if (cause instanceof Error && /permission|denied|NotAllowed/i.test(cause.message)) return false;
   return true;
 }
 
 function toRoomError(cause: unknown): RoomError {
-  if (cause instanceof E2EEUnsupportedError) {
-    return {
-      code: 'E2EE_UNSUPPORTED',
-      message:
-        'This browser cannot encrypt media end-to-end. Please use a recent version of Chrome, Edge, Safari, or Firefox. NME will not connect without encryption.',
-      recoverable: false,
-    };
-  }
-
   if (cause instanceof ApiError) {
     const recoverable = cause.code === 'NETWORK' || cause.code === 'TIMEOUT';
     return { code: cause.code, message: cause.message, recoverable };
@@ -337,7 +311,8 @@ function toRoomError(cause: unknown): RoomError {
   if (cause instanceof Error && /permission|denied|NotAllowed/i.test(cause.message)) {
     return {
       code: 'DEVICE_PERMISSION',
-      message: 'Camera or microphone access was blocked. Grant permission and try again.',
+      message:
+        'Camera or microphone access was blocked. Enable them for NME in Settings and try again.',
       recoverable: true,
     };
   }
@@ -347,15 +322,4 @@ function toRoomError(cause: unknown): RoomError {
     message: 'Could not join the meeting. Please try again.',
     recoverable: true,
   };
-}
-
-/** Convenience accessor used by the grid and toolbar. */
-export function screenShareTrack(room: Room) {
-  for (const participant of [room.localParticipant, ...room.remoteParticipants.values()]) {
-    const publication = participant.getTrackPublication(Track.Source.ScreenShare);
-    if (publication?.track && !publication.isMuted) {
-      return { participant, publication };
-    }
-  }
-  return null;
 }

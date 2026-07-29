@@ -10,3 +10,10 @@ coverage/
 *.tsbuildinfo
 infra/caddy_data/
 infra/caddy_config/
+
+# Native projects are generated from app.config.ts by `expo prebuild` and are
+# never edited by hand — committing them would create two sources of truth for
+# permissions, entitlements, and deep links, and the generated one would lose.
+apps/mobile/ios/
+apps/mobile/android/
+apps/mobile/.expo/

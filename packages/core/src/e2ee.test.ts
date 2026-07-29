@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import {
+  fromBase64Url,
+  toBase64Url,
   buildMeetingUrl,
   buildShortMeetingUrl,
   decodeRoomKey,
@@ -165,5 +167,57 @@ describe('short links', () => {
     for (const bad of ['#', '#tooshort', `#${'A'.repeat(42)}`, `#k=${'A'.repeat(44)}`]) {
       expect(readRoomKeyFromAnyUrl(bad)).toBeNull();
     }
+  });
+});
+
+/**
+ * The base64url codec is hand-written rather than `btoa`/`atob`, so that this
+ * package runs on Hermes without a polyfill holding the room key. That trade is
+ * only sound if the arithmetic is exactly right: an encoder that is subtly
+ * wrong still round-trips against its own decoder, and the mistake would only
+ * surface as a native client deriving a different key from the same link and
+ * silently failing to decrypt anything.
+ *
+ * So these check against an independent implementation, not against itself.
+ */
+describe('base64url, cross-checked against Node', () => {
+  test('decodes what Node encodes', () => {
+    for (let i = 0; i < 500; i++) {
+      const bytes = crypto.getRandomValues(new Uint8Array(32));
+      const reference = Buffer.from(bytes).toString('base64url');
+      expect(new Uint8Array(decodeRoomKey(reference))).toEqual(bytes);
+    }
+  });
+
+  test('encodes byte for byte what Node encodes', () => {
+    // Deliberately driven with known input bytes. Going through
+    // `generateRoomKey` instead would prove nothing: its bytes are random and
+    // unobservable, so any well-formed 43-character output looks correct — a
+    // version of this test written that way passed against an encoder with a
+    // shift-by-one defect in it.
+    for (let i = 0; i < 500; i++) {
+      const bytes = crypto.getRandomValues(new Uint8Array(32));
+      expect(toBase64Url(bytes)).toBe(Buffer.from(bytes).toString('base64url'));
+    }
+  });
+
+  test('handles every trailing-byte case', () => {
+    // 0, 1, and 2 bytes over a multiple of three take different branches, and
+    // the last of them is where an encoder typically emits a wrong character.
+    for (let length = 0; length <= 66; length++) {
+      const bytes = crypto.getRandomValues(new Uint8Array(length));
+      expect(toBase64Url(bytes), `length ${length}`).toBe(
+        Buffer.from(bytes).toString('base64url'),
+      );
+      expect(fromBase64Url(toBase64Url(bytes)), `length ${length}`).toEqual(bytes);
+    }
+  });
+
+  test('rejects characters outside the alphabet rather than skipping them', () => {
+    // Skipping would let several distinct strings decode to one key, so a
+    // corrupted link could quietly place someone in a different meeting.
+    expect(() => decodeRoomKey('+'.repeat(43))).toThrow();
+    expect(() => decodeRoomKey('='.repeat(43))).toThrow();
+    expect(() => decodeRoomKey(`${'A'.repeat(42)} `)).toThrow();
   });
 });

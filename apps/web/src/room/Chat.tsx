@@ -9,7 +9,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Messaging } from './useMessaging';
 import { CloseIcon } from '../components/icons';
-import { POLL_CHOICES, POLL_QUESTION_MAX } from '../lib/messaging';
+import { POLL_CHOICES, POLL_QUESTION_MAX } from '@nme/core';
 
 interface Props {
   messaging: Messaging;

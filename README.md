@@ -17,6 +17,7 @@ paid services anywhere in the stack.
 - [Performance](#performance)
 - [Scaling](#scaling)
 - [Deployment](#deployment)
+- [Mobile apps](#mobile-apps)
 - [Local development](#local-development)
 - [Configuration](#configuration)
 - [Operations](#operations)
@@ -441,6 +442,73 @@ default.
 
 ---
 
+## Mobile apps
+
+Native iOS and Android clients live in `apps/mobile`. They are not a wrapper
+around the website: there is no WebView anywhere in them. Media runs through
+libwebrtc via LiveKit's React Native SDK, with the same camera and microphone
+pipelines a fully native app would use.
+
+### How encryption works off the web
+
+The browser encrypts frames in a Web Worker using Insertable Streams. Neither
+API exists on a phone, so the native clients use libwebrtc's built-in frame
+cryptor instead — same AES-GCM, same derived key, different execution
+environment.
+
+The part that makes a phone and a browser able to hear each other is narrow
+enough to state exactly. LiveKit's key providers accept either a string or raw
+bytes, and the two are **not** equivalent:
+
+| Input | Derivation |
+|---|---|
+| Raw bytes | HKDF-SHA256(key, salt `LKFrameEncryptionKey`, info `0^128`) |
+| String | PBKDF2-SHA256(utf8, same salt, 100k iterations) — web only |
+
+The native frame cryptor implements only the HKDF path; hand it a string and it
+hashes the characters rather than running PBKDF2 over them. So both clients
+pass **raw bytes** (`decodeRoomKey`), which puts them on the one shared
+derivation. Passing a string on either side would produce a call that connects,
+reports itself healthy, and shows nothing but frozen tiles — an authentication
+failure is indistinguishable from a foreign key, so nothing is logged anywhere.
+
+> **Unverified.** This follows from reading both implementations, and it is why
+> the code is written the way it is. It has not been confirmed by a real call
+> between a phone and a browser, because that needs two devices and a
+> deployment. **Do that before publishing anything.** If tiles stay frozen
+> across platforms while same-platform calls work, this is the first place to
+> look.
+
+### Links open the app
+
+A meeting link opens the app rather than the browser via Universal Links on iOS
+and App Links on Android. Both preserve the fragment, which is essential —
+that is where the key is, and it is the reason the server never learns it.
+
+This needs two documents served from the meeting domain; see
+[docs/app-links.md](docs/app-links.md).
+
+### Building
+
+```bash
+npm run prebuild -w @nme/mobile     # generate ios/ and android/
+npm run ios -w @nme/mobile          # needs Xcode and CocoaPods
+npm run android -w @nme/mobile      # needs a JDK and the Android SDK
+```
+
+`ios/` and `android/` are generated from `app.config.ts` and are gitignored —
+edit the config, not the output. Point a build at another deployment with
+`NME_HOST=meet.example.com`.
+
+### Publishing
+
+[docs/store-submission.md](docs/store-submission.md) covers what actually
+blocks a release: the user-generated-content guideline, export compliance, and
+Google Play's 12-testers rule. Read it before building store assets — one of
+those three has a three-week lead time and another is not yet implemented.
+
+---
+
 ## Local development
 
 ```bash
@@ -568,6 +636,14 @@ working within `TOKEN_TTL` seconds.
 ## Project layout
 
 ```
+packages/
+  core/                    Protocol shared by every client
+    src/
+      e2ee.ts              Key generation, fragment transport, room-id hash
+      messaging.ts         Encrypted data-channel envelope
+      deeplink.ts          Link -> room key, for the native clients
+      api.ts               Typed control-plane client
+    (55 tests)
 apps/
   server/                  Fastify control plane
     src/
@@ -590,6 +666,12 @@ apps/
         connect.ts         LiveKit setup, E2EE, media tuning
         useRoom.ts         Room lifecycle hook
       pages/               Home, Meeting (lazy)
+  mobile/                  Expo + React Native, iOS and Android
+    app.config.ts          Permissions, deep links, export declaration
+    src/
+      polyfills.ts         WebRTC and WebCrypto globals
+      room/connect.ts      LiveKit setup with the native frame cryptor
+      screens/             Home, PreJoin, Room
 infra/
   docker-compose.yml       Full stack
   Caddyfile                TLS, CSP, security headers, proxying

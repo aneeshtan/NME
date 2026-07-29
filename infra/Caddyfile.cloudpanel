@@ -60,6 +60,19 @@
 		}
 	}
 
+	# ── Native app association ───────────────────────────────────────────────
+	#
+	# See the notes in ../Caddyfile. One extra thing to check on CloudPanel:
+	# nginx sits in front of Caddy here and handles `/.well-known/acme-challenge`
+	# itself for certificate renewal. Confirm it passes the rest of
+	# `/.well-known/` through, or Apple and Google will fetch nginx's 404 and
+	# every meeting link will keep opening in the browser.
+	handle /.well-known/* {
+		root * /srv
+		header Content-Type "application/json"
+		file_server
+	}
+
 	handle /models/* {
 		header Cache-Control "public, max-age=2592000, immutable"
 		root * /srv

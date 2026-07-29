@@ -1,9 +1,17 @@
 /**
  * Typed client for the control-plane API.
  *
- * Every request is same-origin (Caddy proxies `/api` alongside the SPA), which
- * keeps the CSP `connect-src` tight and sidesteps CORS preflights on the join
- * critical path.
+ * On the web every request is same-origin (Caddy proxies `/api` alongside the
+ * SPA), which keeps the CSP `connect-src` tight and sidesteps CORS preflights
+ * on the join critical path.
+ *
+ * The mobile clients have no origin to be "same" as, so they set an absolute
+ * base once at startup. That base is compiled into the app rather than read
+ * from a link: a meeting URL is attacker-supplied, and letting one choose the
+ * control plane would let a forged invitation point the app at a server that
+ * hands back its own join token. The key would still be unreadable to that
+ * server — but the participant would be in the attacker's room, talking to
+ * whoever else the attacker admitted, which is the whole game.
  */
 
 export interface ClientConfig {
@@ -53,6 +61,22 @@ export class ApiError extends Error {
 
 const TIMEOUT_MS = 10_000;
 
+/** Empty means same-origin, which is what the browser build wants. */
+let baseUrl = '';
+
+/**
+ * Points the client at an absolute control plane. Call once, before any
+ * request; only the native clients need it.
+ */
+export function configureApi(options: { baseUrl: string }): void {
+  const trimmed = options.baseUrl.replace(/\/+$/, '');
+  if (trimmed && !trimmed.startsWith('https://')) {
+    // Plain HTTP would expose the join token, and the room ID, to the network.
+    throw new Error('API base URL must be https');
+  }
+  baseUrl = trimmed;
+}
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   // Abort rather than leaving the user staring at a spinner on a dead network.
   const controller = new AbortController();
@@ -68,7 +92,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
   let response: Response;
   try {
-    response = await fetch(`/api${path}`, {
+    response = await fetch(`${baseUrl}/api${path}`, {
       ...init,
       signal: controller.signal,
       // No cookies exist, and omitting them keeps the request simple (no preflight).
@@ -76,7 +100,11 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       headers,
     });
   } catch (error) {
-    if (error instanceof DOMException && error.name === 'AbortError') {
+    // Matched by name rather than by `instanceof DOMException`: React Native
+    // has no DOMException, so an instance check would misreport every timeout
+    // on mobile as an unreachable server and send the user to look at their
+    // Wi-Fi instead of waiting.
+    if (error instanceof Error && error.name === 'AbortError') {
       throw new ApiError('TIMEOUT', 'The server took too long to respond.', 0);
     }
     throw new ApiError('NETWORK', 'Could not reach the server.', 0);

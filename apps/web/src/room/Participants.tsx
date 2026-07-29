@@ -6,7 +6,7 @@ import type { Room } from 'livekit-client';
 import { Track } from 'livekit-client';
 import { CalendarIcon, CloseIcon, MicOffIcon } from '../components/icons';
 import { CopyLinkButton } from '../components/CopyLinkButton';
-import { safetyNumber } from '../lib/e2ee';
+import { safetyNumber } from '@nme/core';
 import { ScheduleDialog } from '../components/ScheduleDialog';
 
 interface Props {

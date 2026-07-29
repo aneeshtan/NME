@@ -13,8 +13,8 @@ import {
   type RoomConnectOptions,
   type RoomOptions,
 } from 'livekit-client';
-import { decodeRoomKey } from '../lib/e2ee';
-import type { ClientConfig, IceServerConfig } from '../lib/api';
+import { decodeRoomKey } from '@nme/core';
+import type { ClientConfig, IceServerConfig } from '@nme/core';
 
 export interface ConnectParams {
   url: string;

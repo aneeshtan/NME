@@ -4,8 +4,8 @@
  * The threat model: the SFU forwards media between participants, so it sees
  * every packet. Standard WebRTC (DTLS-SRTP) encrypts each *hop*, which means
  * the server can decrypt, inspect, and record everything. E2EE removes the
- * server from the trust boundary entirely — frames are encrypted in the sender's
- * browser and decrypted only in receivers' browsers.
+ * server from the trust boundary entirely — frames are encrypted on the
+ * sender's device and decrypted only on receivers' devices.
  *
  * Key distribution without accounts:
  *
@@ -22,6 +22,10 @@
  *   ✔ A compromised or subpoenaed SFU yields ciphertext only.
  *   ✘ Metadata (who joined, when, how much bandwidth) is visible to the server.
  *   ✘ Anyone with the link can join. Treat the link as the secret it is.
+ *
+ * This module is deliberately free of platform APIs beyond WebCrypto, because
+ * the native mobile clients derive the *same* key from the *same* link and must
+ * agree with the browser bit for bit.
  */
 
 /** AES-GCM 256. Matches the key length LiveKit's E2EE worker expects. */
@@ -73,7 +77,22 @@ export function buildMeetingUrl(origin: string, roomId: string, key: string): st
 
 /**
  * Converts the transported key into the raw bytes LiveKit's key provider needs.
- * LiveKit derives the actual content-encryption key via HKDF internally.
+ *
+ * Raw bytes, never the base64url *string*, and this is not a stylistic choice —
+ * it is the one thing that makes a browser and a phone able to hear each other.
+ * LiveKit's key providers take either, and the two are not equivalent:
+ *
+ *   bytes  → HKDF-SHA256(key, salt "LKFrameEncryptionKey", info 0^128)
+ *   string → PBKDF2-SHA256(utf8(key), same salt, 100k iterations)   [web only]
+ *
+ * The native FrameCryptor used by the iOS and Android SDKs implements only the
+ * HKDF path; hand it a string and it hashes the *characters* rather than
+ * running PBKDF2 over them. So a web client using the string form and a mobile
+ * client in the same room derive different content-encryption keys, and every
+ * frame each sends is undecryptable garbage to the other — with no error, since
+ * an authentication failure is indistinguishable from a foreign key.
+ *
+ * Passing bytes puts both platforms on the single shared HKDF path.
  */
 export function decodeRoomKey(key: string): ArrayBuffer {
   const bytes = fromBase64Url(key);
@@ -82,17 +101,59 @@ export function decodeRoomKey(key: string): ArrayBuffer {
   return bytes.buffer.slice(0, bytes.byteLength) as ArrayBuffer;
 }
 
-function toBase64Url(bytes: Uint8Array): string {
-  let binary = '';
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+const BASE64_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+
+/**
+ * base64url, implemented here rather than via `btoa`/`atob`.
+ *
+ * Those two are browser globals. Hermes, the JavaScript engine React Native
+ * runs, has historically shipped without them, and polyfilling a function this
+ * central to key handling means trusting a third-party package with the room
+ * key. Thirty lines of arithmetic removes the dependency and the doubt.
+ */
+export function toBase64Url(bytes: Uint8Array): string {
+  // `charAt` rather than indexing: it is typed as returning a string, so the
+  // whole function stays free of the `| undefined` that indexing would add to
+  // every one of these expressions.
+  const digit = (value: number): string => BASE64_ALPHABET.charAt(value);
+
+  let out = '';
+  for (let i = 0; i < bytes.length; i += 3) {
+    const a = bytes[i] ?? 0;
+    const b = bytes[i + 1];
+    const c = bytes[i + 2];
+
+    out += digit(a >> 2);
+    out += digit(((a & 0x03) << 4) | ((b ?? 0) >> 4));
+    if (b === undefined) break;
+    out += digit(((b & 0x0f) << 2) | ((c ?? 0) >> 6));
+    if (c === undefined) break;
+    out += digit(c & 0x3f);
+  }
+  return out;
 }
 
-function fromBase64Url(value: string): Uint8Array {
-  const padded = value.replace(/-/g, '+').replace(/_/g, '/');
-  const binary = atob(padded);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+export function fromBase64Url(value: string): Uint8Array {
+  // Reject before decoding. Silently skipping unknown characters would let
+  // several distinct strings map to one key, so a mistyped link could appear to
+  // work while placing the user in a different room.
+  if (!/^[A-Za-z0-9_-]*$/.test(value)) throw new Error('not base64url');
+
+  const bytes = new Uint8Array(Math.floor((value.length * 6) / 8));
+  let bits = 0;
+  let accumulator = 0;
+  let written = 0;
+
+  for (const character of value) {
+    // Masked to 16 bits so the accumulator cannot drift into the sign bit over
+    // a long input; at most 13 bits are ever live.
+    accumulator = ((accumulator << 6) | BASE64_ALPHABET.indexOf(character)) & 0xffff;
+    bits += 6;
+    if (bits >= 8) {
+      bits -= 8;
+      bytes[written++] = (accumulator >> bits) & 0xff;
+    }
+  }
   return bytes;
 }
 

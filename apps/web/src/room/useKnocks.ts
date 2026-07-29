@@ -8,7 +8,7 @@
  * so the right to admit appears on joining and disappears on leaving.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { listKnocks, resolveKnock, type AdmitAuth, type PendingKnock } from '../lib/api';
+import { listKnocks, resolveKnock, type AdmitAuth, type PendingKnock } from '@nme/core';
 
 /**
  * Poll interval. Frequent enough that someone waiting outside is not left
