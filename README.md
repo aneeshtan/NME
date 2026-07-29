@@ -10,6 +10,7 @@ paid services anywhere in the stack.
 
 ## Contents
 
+- [Project site](https://aneeshtan.github.io/NME/)
 - [Architecture](#architecture)
 - [Why LiveKit](#why-livekit)
 - [Encryption](#encryption)
@@ -501,6 +502,10 @@ edit the config, not the output. Point a build at another deployment with
 `NME_HOST=meet.example.com`.
 
 ### Publishing
+
+The privacy and support pages the stores require are published from `docs/`
+via GitHub Pages, and the apps link to them directly. Editing them is editing
+plain HTML in this repository.
 
 [docs/store-submission.md](docs/store-submission.md) covers what actually
 blocks a release: the user-generated-content guideline, export compliance, and

@@ -16,6 +16,14 @@ import type { ExpoConfig } from 'expo/config';
 const HOST = process.env.NME_HOST ?? 'nmetalk.com';
 const ORIGIN = `https://${HOST}`;
 
+/**
+ * The project site, which is where the privacy and support pages live. Kept
+ * separate from ORIGIN because the meeting domain serves a single-page app and
+ * has no room for static pages, while the site is published straight from
+ * `docs/` on GitHub Pages.
+ */
+const SITE = process.env.NME_SITE_URL ?? 'https://aneeshtan.github.io/NME';
+
 const config: ExpoConfig = {
   name: 'NME',
   slug: 'nme',
@@ -32,8 +40,14 @@ const config: ExpoConfig = {
   extra: {
     origin: ORIGIN,
     supportEmail: process.env.NME_SUPPORT_EMAIL ?? 'support@nmetalk.com',
-    supportUrl: `${ORIGIN}/support`,
-    privacyUrl: `${ORIGIN}/privacy`,
+    /**
+     * Pointed at the project site rather than at `${ORIGIN}/support`, which is
+     * the meeting app and has no such route — the SPA would answer with the
+     * home page and a reviewer following the link would find no policy at all.
+     * Both stores require these to resolve, and both are checked by a human.
+     */
+    supportUrl: process.env.NME_SUPPORT_URL ?? `${SITE}/support.html`,
+    privacyUrl: process.env.NME_PRIVACY_URL ?? `${SITE}/privacy.html`,
   },
 
   ios: {
