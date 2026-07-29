@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -31,6 +32,7 @@ import {
 } from '@nme/core';
 import { theme } from '../theme';
 import { ORIGIN } from '../lib/config';
+import { PRIVACY_URL, SUPPORT_URL } from '../lib/support';
 import { saveHostKey } from '../lib/storage';
 
 interface Props {
@@ -148,6 +150,21 @@ export function HomeScreen({ onOpenKey }: Props) {
           Anyone with the link can join, so treat it as the secret it is. Nothing is recorded, and
           messages disappear when the meeting ends.
         </Text>
+
+        {/*
+          Reachable from inside the app, not only from the store listing.
+          Guideline 1.2 asks for published contact information, and a support
+          address a user can only find by leaving the app does not meet it.
+        */}
+        <View style={styles.links}>
+          <Pressable accessibilityRole="link" onPress={() => void Linking.openURL(PRIVACY_URL)}>
+            <Text style={styles.link}>Privacy</Text>
+          </Pressable>
+          <Text style={styles.linkSeparator}>·</Text>
+          <Pressable accessibilityRole="link" onPress={() => void Linking.openURL(SUPPORT_URL)}>
+            <Text style={styles.link}>Support</Text>
+          </Pressable>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -220,4 +237,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: theme.space(6),
   },
+  links: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: theme.space(2),
+    marginTop: theme.space(2),
+  },
+  link: { color: theme.color.muted, fontSize: 12, textDecorationLine: 'underline' },
+  linkSeparator: { color: theme.color.muted, fontSize: 12 },
 });

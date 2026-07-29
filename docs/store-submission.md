@@ -46,19 +46,22 @@ you can only reach someone by sending them a link.
 Put that argument in the review notes verbatim, and back it with the other
 three requirements actually implemented:
 
-- [ ] **Block**: let a participant hide and locally mute anyone in the meeting,
-      and let a meeting's creator remove someone outright.
-- [ ] **Report**: a per-participant "Report" action that opens a prefilled
-      message to your support address with the room ID and timestamp, and
-      nothing else — there is no content to attach.
-- [ ] **Contact**: a support email and URL, reachable from inside the app and
-      listed on the store page.
-- [ ] A published policy stating what you do on a report (you can act on
-      identifiers and revoke rooms; you cannot read content).
-
-> Status: **not yet implemented.** The mobile app currently has no block or
-> report action. Submitting before adding them is very likely to draw a 1.2
-> rejection.
+- [x] **Block** — press and hold any participant's tile. The block is local and
+      one-sided, which is what blocking means everywhere else; it unsubscribes
+      from their tracks, so their audio and video stop arriving over the
+      network rather than merely being hidden behind a view.
+- [x] **Report** — the same menu offers "Block and report", which opens a
+      prefilled message to the support address carrying the room ID and a
+      timestamp and nothing else, because nothing else exists in readable form.
+- [x] **Contact** — support and privacy links on the home screen, configured
+      through `NME_SUPPORT_EMAIL` and the app config.
+- [ ] **Publish a policy** at `/support` and `/privacy` stating what you do on
+      receiving a report: you can revoke a room and block a network address;
+      you cannot read content. These two URLs are linked from inside the app
+      and must resolve before submission.
+- [ ] Optional but worth having: let a meeting's creator remove someone
+      outright. LiveKit supports this server-side via `removeParticipant`; the
+      host key issued at room creation is already the right authority for it.
 
 ### 2.2 Guideline 4.2 — minimum functionality
 
@@ -230,7 +233,8 @@ like a broken app, and reviewers notice.
       as `application/json`
 - [ ] `assetlinks.json` filled in with the **Play App Signing** fingerprint,
       not the upload key
-- [ ] Block, report, and contact affordances implemented (§2.1)
+- [x] Block, report, and contact affordances implemented (§2.1)
+- [ ] `/support` and `/privacy` pages live — the app links to both
 - [ ] Privacy policy published and linked from both store listings
 - [ ] Support email and URL live
 - [ ] Export self-classification filed; `ITSAppUsesNonExemptEncryption` left as

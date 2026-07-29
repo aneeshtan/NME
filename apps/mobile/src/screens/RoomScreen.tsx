@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Dimensions,
   FlatList,
   KeyboardAvoidingView,
@@ -29,6 +30,7 @@ import type { TrackReference } from '@livekit/components-react';
 import { theme } from '../theme';
 import { useRoom } from '../room/useRoom';
 import { useMessaging } from '../room/useMessaging';
+import { reportParticipant } from '../lib/support';
 
 interface Props {
   roomId: string;
@@ -56,7 +58,65 @@ export function RoomScreen({ roomId, roomKey, displayName, onLeave }: Props) {
     void connect(displayName);
   }, [connect, displayName]);
 
-  const tiles = useMemo(() => (room ? collectTiles(room) : []), [room, version]);
+  /**
+   * People this participant has blocked, by identity.
+   *
+   * Local and one-sided on purpose. Enforcing a block for everyone would mean
+   * granting one participant authority over another's media, which is a much
+   * larger change to the trust model than the problem justifies — and it is
+   * not what blocking means anywhere else. What this does is stop *this*
+   * device receiving them at all: their tracks are unsubscribed, so the
+   * blocked person's audio and video stop arriving over the network rather
+   * than merely being hidden behind a view.
+   */
+  const [blocked, setBlocked] = useState<ReadonlySet<string>>(new Set());
+
+  const tiles = useMemo(
+    () => (room ? collectTiles(room).filter((tile) => !blocked.has(tile.key)) : []),
+    [room, version, blocked],
+  );
+
+  const blockParticipant = useCallback(
+    (identity: string) => {
+      setBlocked((previous) => new Set(previous).add(identity));
+
+      const participant = room?.remoteParticipants.get(identity);
+      if (!participant) return;
+      // Unsubscribing rather than hiding: it also reclaims the bandwidth and
+      // the decode budget their streams were consuming.
+      for (const publication of participant.trackPublications.values()) {
+        publication.setSubscribed(false);
+      }
+    },
+    [room],
+  );
+
+  /**
+   * The block-and-report affordance App Store Guideline 1.2 requires of any app
+   * carrying content between users.
+   */
+  const openParticipantActions = useCallback(
+    (tile: TileModel) => {
+      if (tile.isLocal) return;
+      Alert.alert(tile.name, undefined, [
+        {
+          text: 'Block for me',
+          style: 'destructive',
+          onPress: () => blockParticipant(tile.key),
+        },
+        {
+          text: 'Block and report',
+          style: 'destructive',
+          onPress: () => {
+            blockParticipant(tile.key);
+            void reportParticipant({ roomId, displayName: tile.name });
+          },
+        },
+        { text: 'Cancel', style: 'cancel' },
+      ]);
+    },
+    [blockParticipant, roomId],
+  );
 
   const toggleMic = useCallback(async () => {
     if (!room) return;
@@ -119,7 +179,13 @@ export function RoomScreen({ roomId, roomKey, displayName, onLeave }: Props) {
         keyExtractor={(tile) => tile.key}
         numColumns={columns}
         contentContainerStyle={styles.grid}
-        renderItem={({ item }) => <Tile tile={item} width={tileWidth(columns)} />}
+        renderItem={({ item }) => (
+          <Tile
+            tile={item}
+            width={tileWidth(columns)}
+            onLongPress={() => openParticipantActions(item)}
+          />
+        )}
       />
 
       {chatOpen && (
@@ -203,9 +269,23 @@ function tileWidth(columns: number): number {
   return (Dimensions.get('window').width - gutters) / columns;
 }
 
-function Tile({ tile, width }: { tile: TileModel; width: number }) {
+function Tile({
+  tile,
+  width,
+  onLongPress,
+}: {
+  tile: TileModel;
+  width: number;
+  onLongPress: () => void;
+}) {
   return (
-    <View style={[styles.tile, { width, height: width * 1.2 }]}>
+    <Pressable
+      onLongPress={tile.isLocal ? undefined : onLongPress}
+      // Spelled out for screen readers, because a long press is otherwise
+      // undiscoverable and this is the only route to blocking someone.
+      accessibilityHint={tile.isLocal ? undefined : 'Press and hold to block or report'}
+      style={[styles.tile, { width, height: width * 1.2 }]}
+    >
       {tile.reference ? (
         <VideoTrack
           trackRef={tile.reference}
@@ -224,7 +304,7 @@ function Tile({ tile, width }: { tile: TileModel; width: number }) {
           {tile.muted ? '  ·  muted' : ''}
         </Text>
       </View>
-    </View>
+    </Pressable>
   );
 }
 

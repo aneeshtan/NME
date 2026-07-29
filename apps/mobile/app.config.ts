@@ -24,7 +24,17 @@ const config: ExpoConfig = {
   scheme: 'nme',
   userInterfaceStyle: 'dark',
 
-  extra: { origin: ORIGIN },
+  /**
+   * Contact details. Reachable from inside the app, not only from the store
+   * listing — Guideline 1.2 asks for published contact information, and a
+   * support link a user can only find by leaving the app does not count.
+   */
+  extra: {
+    origin: ORIGIN,
+    supportEmail: process.env.NME_SUPPORT_EMAIL ?? 'support@nmetalk.com',
+    supportUrl: `${ORIGIN}/support`,
+    privacyUrl: `${ORIGIN}/privacy`,
+  },
 
   ios: {
     bundleIdentifier: 'com.nmetalk.app',
