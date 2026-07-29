@@ -12,7 +12,23 @@ ARG APP_DOMAIN=""
 COPY package.json package-lock.json ./
 COPY apps/server/package.json apps/server/
 COPY apps/web/package.json apps/web/
-RUN npm ci --workspace @nme/web --include-workspace-root
+
+# The web app imports @nme/core, a workspace sibling rather than a registry
+# package, so the source has to be in the image before npm can link it. Copied
+# whole (it is a handful of files) because `npm ci` runs the package's `prepare`
+# script, and prepare compiles it — with only the manifest present that would
+# fail on a missing src directory.
+COPY packages/core ./packages/core
+
+# Both workspaces, not just @nme/web. Installing only the web workspace links
+# @nme/core but skips its devDependencies, and prepare then cannot find tsc.
+RUN npm ci --include-workspace-root --workspace @nme/core --workspace @nme/web
+
+# Explicit rather than relying on `prepare` having run during the install. This
+# is the step that produces the .d.ts files the web build type-checks against,
+# and a silent skip would surface as "Cannot find module '@nme/core'" a layer
+# later, which reads like a resolution problem rather than a missing build.
+RUN npm run build --workspace @nme/core
 
 COPY apps/web ./apps/web
 RUN npm run build --workspace @nme/web
