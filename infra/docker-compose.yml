@@ -160,9 +160,17 @@ services:
   redis:
     <<: *hardening
     image: redis:7-alpine
+    # The `:?` guard below is not decoration. With REDIS_PASSWORD empty, the
+    # folded command becomes `--requirepass --maxmemory 256mb …`, so
+    # `--requirepass` swallows `--maxmemory` as its value and `256mb` is left as
+    # a stray argument. Redis exits immediately, the healthcheck never passes,
+    # and Compose reports only "dependency failed to start: container
+    # nme-redis-1 is unhealthy" — which points at the healthcheck rather than at
+    # the unset variable that actually caused it. This way it fails at parse
+    # time, naming the fix.
     command: >
       redis-server
-      --requirepass ${REDIS_PASSWORD}
+      --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD is empty in .env - generate one with: npm run keys}
       --maxmemory 256mb
       --maxmemory-policy allkeys-lru
       --save ""
