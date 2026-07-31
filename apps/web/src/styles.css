@@ -59,12 +59,43 @@
     text-rendering: optimizeLegibility;
   }
 
+  /*
+   * The app shell's height chain.
+   *
+   * `dvh`, not `%` or `vh`. On a phone browser the toolbars retract as you
+   * scroll, which gives the viewport two sizes: `100vh` — and `height: 100%`
+   * resolved against the initial containing block — always report the *large*
+   * one, so a layout sized to fill the screen is actually taller than the
+   * screen and its last row sits behind the browser chrome. In a meeting that
+   * row is the toolbar holding "leave" and the mic toggle.
+   *
+   * `dvh` tracks the viewport as it is right now, so the shell fits at every
+   * point of the toolbar animation. It needs no fallback: Tailwind v4 already
+   * requires Safari 16.4+ for `@property` and cascade layers, and `dvh` landed
+   * in Safari 15.4 — any browser that can parse this file supports it.
+   *
+   * Declared here rather than as `h-full` classes in index.html because these
+   * have to be the last word: a utility class would win against them and
+   * reinstate the percentage.
+   */
+  html,
+  body,
+  #root {
+    height: 100dvh;
+  }
+
   body {
     background-color: var(--color-bg);
     color: var(--color-fg);
     font-family: var(--font-sans);
     /* Prevent rubber-band scrolling from revealing the page behind the grid. */
     overscroll-behavior: none;
+    /*
+     * Suppresses the double-tap-to-zoom gesture, and with it the 300ms delay
+     * browsers otherwise hold every tap for while they wait to find out whether
+     * a second one is coming. Panning and pinching are unaffected.
+     */
+    touch-action: manipulation;
   }
 
   /*
@@ -220,10 +251,41 @@
   padding-top: max(1.25rem, env(safe-area-inset-top));
 }
 
-@utility px-safe {
-  /* Landscape notches intrude from the side. */
-  padding-left: max(0.75rem, env(safe-area-inset-left));
-  padding-right: max(0.75rem, env(safe-area-inset-right));
+/*
+ * Landscape notches intrude from the side, and a phone held sideways is the
+ * normal way to be in a video call.
+ *
+ * Applied once at the root of each surface rather than on the individual
+ * components inside it, so every child — banners, video grid, toolbar, the
+ * panels that overlay them — clears the notch without each having to know about
+ * it. `env()` is 0 on a device with no inset, so this composes with whatever
+ * ordinary padding the children already have instead of competing with it.
+ */
+@utility px-inset {
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
+/*
+ * A 16px floor for anything focusable on a touch screen.
+ *
+ * iOS Safari zooms the page in when a control takes focus whose text is below
+ * 16px, and it does not zoom back out afterwards: tapping the chat box once
+ * leaves the entire call scaled up and half off screen for the rest of the
+ * meeting. The viewport `maximum-scale` in index.html asks Safari not to, but
+ * Safari honours that only for this automatic zoom on some versions — the size
+ * floor is what holds everywhere.
+ *
+ * Deliberately outside `@layer`, which puts it ahead of Tailwind's `utilities`
+ * layer. Inside a layer, a `text-sm` on any one field would quietly win and
+ * bring the bug back.
+ */
+@media (pointer: coarse) {
+  input:not([type='checkbox']):not([type='radio']),
+  select,
+  textarea {
+    font-size: 1rem;
+  }
 }
 
 /* Reaction: rises and fades, so it reads as a moment rather than a label. */

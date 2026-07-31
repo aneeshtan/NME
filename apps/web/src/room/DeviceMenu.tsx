@@ -77,7 +77,18 @@ export function DeviceMenu({
       ref={panelRef}
       role="dialog"
       aria-label="Audio and video settings"
-      className="absolute bottom-full left-1/2 z-30 mb-3 w-[min(20rem,calc(100vw-1.5rem))] -translate-x-1/2 rounded-2xl border border-border bg-elevated p-4 shadow-xl"
+      /*
+       * The panel is roughly 600px of content — three device pickers, four
+       * labelled switches and the timebox row. Anchored above a toolbar that
+       * wraps to two rows on a phone, that is taller than what is left of the
+       * screen, and the overflow goes off the *top*: the microphone picker,
+       * the first thing anyone opens this for, ends up clipped and out of
+       * reach. Capping the height moves the excess into a scroll instead.
+       *
+       * `overscroll-contain` keeps that scroll from continuing into the page
+       * behind once the list reaches its end.
+       */
+      className="absolute bottom-full left-1/2 z-30 mb-3 max-h-[min(70dvh,30rem)] w-[min(20rem,calc(100vw-1.5rem))] -translate-x-1/2 overflow-y-auto overscroll-contain rounded-2xl border border-border bg-elevated p-4 shadow-xl"
     >
       <div className="mb-3 flex items-center justify-between">
         <h2 className="text-sm font-semibold">Settings</h2>

@@ -94,7 +94,7 @@ export function PreJoin({
   const canJoin = name.trim().length > 0 && !connecting;
 
   return (
-    <div className="flex min-h-full flex-col">
+    <div className="px-inset flex min-h-full flex-col">
       <header className="pt-safe px-5 pb-5 sm:px-8">
         <Logo />
       </header>

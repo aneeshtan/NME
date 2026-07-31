@@ -1,8 +1,25 @@
 <!doctype html>
-<html lang="en" class="h-full">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <!--
+      `maximum-scale`/`user-scalable` state the intent: this is an app shell that
+      always fits its viewport, so there is nothing to zoom into and a stray
+      pinch during a call should not leave the toolbar off screen. iOS Safari
+      deliberately ignores both for a pinch gesture — see the 16px control floor
+      in styles.css, which is what actually stops Safari zooming in by itself
+      when a text field takes focus.
+
+      Heights are deliberately not set here: the `h-full` classes this element
+      used to carry resolved to `height: 100%`, which on a phone measures the
+      viewport as though the browser toolbars were retracted and pushed the
+      bottom of the UI off screen. The height chain lives in styles.css and is
+      expressed in `dvh`.
+    -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
     <title>NME — Private video meetings</title>
     <meta name="description" content="Instant, end-to-end encrypted video meetings. No account required." />
     <meta name="color-scheme" content="light dark" />
@@ -52,8 +69,8 @@
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/icon.svg" />
   </head>
-  <body class="h-full">
-    <div id="root" class="h-full"></div>
+  <body>
+    <div id="root"></div>
     <noscript>
       <p style="padding: 2rem; font-family: system-ui, sans-serif">
         NME needs JavaScript to encrypt and transmit media in your browser.

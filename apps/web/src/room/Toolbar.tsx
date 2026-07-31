@@ -75,7 +75,10 @@ export function Toolbar({
   children,
 }: Props) {
   return (
-    <div className="pb-safe px-safe relative flex flex-wrap items-center justify-center gap-2 pt-3 max-[359px]:gap-1.5 sm:gap-3">
+    // Side insets are handled once at the meeting root (`px-inset`), so plain
+    // padding here; `pb-safe` stays, because the home indicator is this bar's
+    // problem alone.
+    <div className="pb-safe relative flex flex-wrap items-center justify-center gap-2 px-3 pt-3 max-[359px]:gap-1.5 sm:gap-3">
       {children}
 
       <ControlButton

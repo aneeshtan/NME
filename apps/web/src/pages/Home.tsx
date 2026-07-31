@@ -103,7 +103,7 @@ export function Home() {
   );
 
   return (
-    <div className="flex min-h-full flex-col">
+    <div className="px-inset flex min-h-full flex-col">
       <header className="pt-safe pb-5">
         <div className="mx-auto w-full max-w-5xl px-6 lg:px-8">
           <Logo />

@@ -308,8 +308,12 @@ export default function Meeting({ roomId: routeRoomId }: Props) {
   const participantCount = room.remoteParticipants.size + 1;
   const quality = qualityLevel(room.localParticipant.connectionQuality);
 
+  // `overflow-hidden` makes the call a fixed shell rather than a document: the
+  // grid area below is `min-h-0 flex-1`, so whatever the banners and toolbar
+  // need comes out of the video and the page itself never scrolls. Without it a
+  // phone can scroll the toolbar out of view mid-call, with no obvious way back.
   return (
-    <div className="relative flex h-full flex-col">
+    <div className="px-inset relative flex h-full flex-col overflow-hidden">
       {status === 'reconnecting' && (
         <div
           role="status"
@@ -644,7 +648,7 @@ function FatalError({ message }: { message: string }) {
 
 function LeftScreen({ roomId, meetingUrl }: { roomId: string; meetingUrl: string }) {
   return (
-    <div className="flex h-full flex-col">
+    <div className="px-inset flex h-full flex-col">
       <header className="pt-safe px-5 pb-5 sm:px-8">
         <Logo />
       </header>
