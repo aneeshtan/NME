@@ -291,15 +291,15 @@ it did before, and restricted-network users simply cannot join.
 
 Measured from the production build in this repository:
 
-| Asset | Raw | gzip | brotli |
-| --- | ---: | ---: | ---: |
-| App entry | 13.4 KB | 5.3 KB | 4.6 KB |
-| React | 192.5 KB | 60.1 KB | 52.0 KB |
-| CSS | 21.8 KB | 5.1 KB | 4.4 KB |
-| **Home page total** | **227.7 KB** | **70.5 KB** | **61.0 KB** |
-| Meeting UI *(lazy)* | 19.6 KB | 6.6 KB | 5.8 KB |
-| LiveKit client *(lazy)* | 528.2 KB | 137.3 KB | 114.7 KB |
-| E2EE worker *(lazy)* | 94.4 KB | 29.1 KB | 25.7 KB |
+| Asset | Raw | gzip |
+| --- | ---: | ---: |
+| App entry | 25.1 KB | 8.9 KB |
+| React | 192.5 KB | 60.1 KB |
+| CSS | 31.5 KB | 7.0 KB |
+| **Home page total** | **249.1 KB** | **76.0 KB** |
+| Meeting UI *(lazy)* | 59.5 KB | 17.7 KB |
+| LiveKit client *(lazy)* | 528.2 KB | 137.3 KB |
+| E2EE worker *(lazy)* | 94.4 KB | 29.1 KB |
 
 The 137 KB LiveKit client is **never downloaded on the home page** — it loads
 only when a `/r/:id` route is opened.
@@ -323,6 +323,14 @@ only when a `/r/:id` route is opened.
   12-person grid renders ~180p tiles; pulling 720p each would waste ~10× the
   bandwidth and decode budget for pixels nobody sees.
 - **Dynacast** — stops publishing layers nobody is subscribed to.
+- **Bounded tiles** — the grid renders at most nine cameras and everyone beyond
+  that stays audible but unshown, with active speakers promoted into the visible
+  set. The binding constraint in a large meeting is the receiver's decoder, not
+  the SFU: `adaptiveStream` already pauses tracks scrolled out of view, but a
+  desktop grid puts every tile on screen at once, so nothing was paused.
+- **Room-size-aware publishing** — deployments configured above 25 participants
+  capture at 540p instead of 720p and drop Opus RED. See
+  [docs/capacity.md](docs/capacity.md).
 - **Opus DTX** — stops sending during silence, which is most of a meeting.
 - Hardware encode/decode wherever the browser offers it; frame encryption runs
   in a **Web Worker**, never competing with rendering.

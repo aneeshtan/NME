@@ -7,10 +7,28 @@
  *    filmstrip. Switching is automatic — nobody should have to find a button
  *    when someone starts sharing.
  */
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import type { Participant, Room } from 'livekit-client';
 import { Track } from 'livekit-client';
 import { VideoTile } from './VideoTile';
+import { AudioSink } from './AudioSink';
+
+/**
+ * How many camera tiles the equal grid will render at once.
+ *
+ * Nine, because the cost that matters is not the SFU's — it is the receiver's.
+ * Every rendered tile is a live video decode, and a phone or an older laptop
+ * thermally throttles somewhere well short of the 25 a full room would produce.
+ * `adaptiveStream` already pauses tracks whose elements are scrolled out of
+ * view, which is why a narrow screen has always been fine; a desktop grid puts
+ * every tile in the viewport at once, so nothing was paused and the ceiling was
+ * the room's participant cap.
+ *
+ * Everyone beyond the ninth is still *heard* — see AudioSink — and still
+ * reachable through pin and speaker view. Nine also happens to be the largest
+ * count that stays a tidy 3x3.
+ */
+const MAX_VIDEO_TILES = 9;
 
 interface Props {
   room: Room;
@@ -67,6 +85,14 @@ export function Grid({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [participants, pinnedIdentity, followSpeaker, room, version]);
 
+  // Called before the early returns below, as every hook must be. Cheap when
+  // the room is under the cap: it returns the input list unchanged.
+  const { visible, overflow } = useVisibleParticipants(
+    participants,
+    speakingIds,
+    MAX_VIDEO_TILES,
+  );
+
   if (!screenShare && featured) {
     return (
       <Featured
@@ -110,25 +136,132 @@ export function Grid({
     );
   }
 
-  const columns = columnsFor(participants.length);
+  // Tile count drives the column count, and the overflow counter occupies one.
+  const tileCount = visible.length + (overflow.length > 0 ? 1 : 0);
+  const columns = columnsFor(tileCount);
 
   return (
-    <div className="video-grid" data-columns={columns} data-count={participants.length}>
-      {participants.map((participant) => (
-        <button
-          key={participant.sid}
-          type="button"
-          onClick={() => onPin(participant.identity)}
-          title={`Pin ${participant.name || 'Guest'}`}
-          className="video-tile cursor-pointer text-left"
-        >
-          <VideoTile
-            {...tileState(participant, Track.Source.Camera, { reactions, raisedHands })}
-            isLocal={participant === room.localParticipant}
-            isSpeaking={speakingIds.has(participant.identity)}
+    <>
+      <div className="video-grid" data-columns={columns} data-count={tileCount}>
+        {visible.map((participant) => (
+          <button
+            key={participant.sid}
+            type="button"
+            onClick={() => onPin(participant.identity)}
+            title={`Pin ${participant.name || 'Guest'}`}
+            className="video-tile cursor-pointer text-left"
+          >
+            <VideoTile
+              {...tileState(participant, Track.Source.Camera, { reactions, raisedHands })}
+              isLocal={participant === room.localParticipant}
+              isSpeaking={speakingIds.has(participant.identity)}
+            />
+          </button>
+        ))}
+
+        {overflow.length > 0 && <OverflowTile participants={overflow} />}
+      </div>
+
+      {/*
+        The people who did not fit. Rendered as bare audio elements so they are
+        still heard — see AudioSink on why that is not a detail.
+      */}
+      {overflow.map((participant) => {
+        const mic = participant.getTrackPublication(Track.Source.Microphone);
+        return (
+          <AudioSink
+            key={participant.sid}
+            audioTrack={mic?.track}
+            audioMuted={mic?.isMuted !== false}
           />
-        </button>
-      ))}
+        );
+      })}
+    </>
+  );
+}
+
+/**
+ * Chooses which participants get a tile, and keeps that choice stable.
+ *
+ * The naive version — sort by who is talking, take the first nine — reshuffles
+ * the grid on every utterance, which is unusable: tiles swap places while you
+ * are looking at them. So the visible set is sticky. It changes only when
+ * someone leaves, when a free slot opens, or when a participant who is speaking
+ * is not on screen, in which case they displace the quietest tile that is.
+ *
+ * The local participant holds slot zero and is never displaced.
+ */
+function useVisibleParticipants(
+  participants: Participant[],
+  speakingIds: Set<string>,
+  cap: number,
+): { visible: Participant[]; overflow: Participant[] } {
+  // Survives across renders so the previous choice can be honoured. Written
+  // during the memo rather than in an effect: the result has to be consistent
+  // with what this render returns, and an effect would apply it one frame late.
+  const chosen = useRef<string[]>([]);
+
+  return useMemo(() => {
+    if (participants.length <= cap) {
+      chosen.current = participants.map((p) => p.identity);
+      return { visible: participants, overflow: [] };
+    }
+
+    const byIdentity = new Map(participants.map((p) => [p.identity, p]));
+
+    // Anyone who left releases their slot.
+    let kept = chosen.current.filter((id) => byIdentity.has(id));
+
+    // Slot zero is the local participant — seeing yourself vanish because nine
+    // other people spoke would read as a bug.
+    const localIdentity = participants[0]?.identity;
+    if (localIdentity) {
+      kept = kept.filter((id) => id !== localIdentity);
+      kept.unshift(localIdentity);
+    }
+
+    // Fill whatever is free, in join order.
+    for (const participant of participants) {
+      if (kept.length >= cap) break;
+      if (!kept.includes(participant.identity)) kept.push(participant.identity);
+    }
+    kept = kept.slice(0, cap);
+
+    // Promote active speakers who are off screen, displacing a silent tile.
+    // Slot zero is skipped, so the local participant is never the one evicted.
+    for (const identity of speakingIds) {
+      if (kept.includes(identity) || !byIdentity.has(identity)) continue;
+      const silent = kept.findIndex((id, index) => index > 0 && !speakingIds.has(id));
+      if (silent === -1) break;
+      kept[silent] = identity;
+    }
+
+    chosen.current = kept;
+    const visibleSet = new Set(kept);
+
+    return {
+      visible: kept.map((id) => byIdentity.get(id)).filter((p): p is Participant => Boolean(p)),
+      overflow: participants.filter((p) => !visibleSet.has(p.identity)),
+    };
+  }, [participants, speakingIds, cap]);
+}
+
+/** Stands in for everyone past the tile cap, so the count is never hidden. */
+function OverflowTile({ participants }: { participants: Participant[] }) {
+  const names = participants
+    .slice(0, 8)
+    .map((p) => p.name || 'Guest')
+    .join(', ');
+
+  return (
+    <div
+      className="video-tile flex flex-col items-center justify-center gap-1 rounded-xl bg-surface text-center"
+      title={participants.length > 8 ? `${names}, and ${participants.length - 8} more` : names}
+    >
+      <span className="text-2xl font-semibold">+{participants.length}</span>
+      <span className="px-2 text-xs leading-snug text-muted">
+        more {participants.length === 1 ? 'person' : 'people'} — audible, not shown
+      </span>
     </div>
   );
 }

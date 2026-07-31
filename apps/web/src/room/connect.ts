@@ -85,6 +85,25 @@ function buildRoomOptions(
   keyProvider: ExternalE2EEKeyProvider,
   worker: Worker,
 ): RoomOptions {
+  /**
+   * Whether this deployment is configured for large meetings.
+   *
+   * Keyed on the room *ceiling*, not the live participant count, because
+   * publishing defaults are fixed when the Room is constructed and changing
+   * them later means republishing the camera track — a visible blip mid-call.
+   * The threshold sits above the default cap of 25 on purpose: an operator who
+   * raised `MAX_PARTICIPANTS` has said they expect crowded rooms, and only they
+   * pay for these trades. A default deployment behaves exactly as before.
+   *
+   * Worth being clear about what this does *not* do. It does not reduce what is
+   * sent for a given subscriber — `dynacast` already stops publishing layers
+   * nobody is watching, so in a large grid the 720p layer is neither sent nor
+   * encoded regardless of this flag. What it saves is the capture pipeline
+   * itself: the camera is opened at a lower resolution, and every downscale
+   * feeding the smaller layers starts from fewer pixels.
+   */
+  const crowded = config.maxParticipants > 25;
+
   return {
     e2ee: { keyProvider, worker },
 
@@ -105,7 +124,10 @@ function buildRoomOptions(
     disconnectOnPageLeave: true,
 
     videoCaptureDefaults: {
-      resolution: VideoPresets.h720.resolution,
+      // In a crowded room no tile is ever rendered large enough for 720p to be
+      // visible — the grid caps at nine tiles, and nine tiles on a laptop is
+      // roughly 360p each.
+      resolution: crowded ? VideoPresets.h540.resolution : VideoPresets.h720.resolution,
       facingMode: 'user',
     },
 
@@ -129,12 +151,25 @@ function buildRoomOptions(
       simulcast: true,
       videoSimulcastLayers: [VideoPresets.h180, VideoPresets.h360],
       videoCodec: config.videoCodec,
-      videoEncoding: VideoPresets.h720.encoding,
+      videoEncoding: crowded ? VideoPresets.h540.encoding : VideoPresets.h720.encoding,
 
       // Opus DTX: stop sending packets during silence. Meaningful savings in a
       // meeting, where most participants are listening most of the time.
       dtx: true,
-      red: true,
+
+      /**
+       * RED duplicates each Opus packet into the next one, so a single lost
+       * packet costs nothing. It also roughly doubles audio bitrate — and audio
+       * is the one thing subscribed for *every* participant, including the ones
+       * past the grid's tile cap. At 25 people that trade is clearly worth it;
+       * at 50 it is 50 doubled streams against a loss rate that DTX has already
+       * made bursty and short.
+       *
+       * This is a real trade, not a free win: dropping it makes a lossy network
+       * audibly worse. It is made only where the operator has configured for
+       * large rooms.
+       */
+      red: !crowded,
       audioPreset: { maxBitrate: 24_000 },
 
       /**

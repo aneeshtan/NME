@@ -8,7 +8,6 @@
  */
 import { useEffect, useRef } from 'react';
 import type { DeviceKind, DeviceState } from './useDevices';
-import type { BackgroundBlur } from './useBackgroundBlur';
 import { CloseIcon } from '../components/icons';
 
 interface Props {
@@ -19,7 +18,6 @@ interface Props {
   onToggleWarnWhenMuted: () => void;
   presenceSound: boolean;
   onTogglePresenceSound: () => void;
-  blur: BackgroundBlur;
   onSetTimebox: (endsAt: number | null) => void;
   onClose: () => void;
 }
@@ -38,7 +36,6 @@ export function DeviceMenu({
   onToggleWarnWhenMuted,
   presenceSound,
   onTogglePresenceSound,
-  blur,
   onSetTimebox,
   onClose,
 }: Props) {
@@ -78,7 +75,7 @@ export function DeviceMenu({
       role="dialog"
       aria-label="Audio and video settings"
       /*
-       * The panel is roughly 600px of content — three device pickers, four
+       * The panel is roughly 500px of content — three device pickers, three
        * labelled switches and the timebox row. Anchored above a toolbar that
        * wraps to two rows on a phone, that is taller than what is left of the
        * screen, and the overflow goes off the *top*: the microphone picker,
@@ -146,40 +143,6 @@ export function DeviceMenu({
           </span>
         </span>
       </label>
-
-      {(blur.available || blur.native.kind === 'readonly') && (
-        <label
-          className={`mt-4 flex items-start gap-2.5 border-t border-border pt-3.5 ${
-            blur.available ? 'cursor-pointer' : ''
-          }`}
-        >
-          <input
-            type="checkbox"
-            checked={blur.mode !== 'off' || (blur.native.kind !== 'none' && blur.native.enabled)}
-            onChange={() => void blur.toggle()}
-            // Read-only platform blur can be reported but not switched by a
-            // web page — only macOS Control Center can change it.
-            disabled={!blur.available || blur.loading}
-            className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-accent)] disabled:opacity-50"
-          />
-          <span>
-            <span className="block text-sm font-medium">
-              Blur my background
-              {blur.loading && <span className="ml-1.5 text-xs text-muted">loading…</span>}
-            </span>
-            <span className="mt-0.5 block text-xs leading-relaxed text-muted">
-              {blur.native.kind === 'readonly'
-                ? 'Controlled by your system camera settings.'
-                : blur.mode === 'native'
-                  ? 'Handled by your camera — no extra processing.'
-                  : 'Downloads about 400 KB the first time and uses your GPU.'}
-            </span>
-            {blur.error && (
-              <span className="mt-1 block text-xs text-danger">{blur.error}</span>
-            )}
-          </span>
-        </label>
-      )}
 
       <div className="mt-4 border-t border-border pt-3.5">
         <p className="text-sm font-medium">Timebox this meeting</p>

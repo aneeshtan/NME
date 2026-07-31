@@ -12,9 +12,6 @@
   },
   "dependencies": {
     "@nme/core": "*",
-    "@tensorflow/tfjs-backend-webgl": "^4.22.0",
-    "@tensorflow/tfjs-converter": "^4.22.0",
-    "@tensorflow/tfjs-core": "^4.22.0",
     "livekit-client": "^2.9.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
