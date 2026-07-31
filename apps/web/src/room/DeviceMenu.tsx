@@ -8,6 +8,7 @@
  */
 import { useEffect, useRef } from 'react';
 import type { DeviceKind, DeviceState } from './useDevices';
+import type { BackgroundBlur } from './useBackgroundBlur';
 import { CloseIcon } from '../components/icons';
 
 interface Props {
@@ -16,6 +17,7 @@ interface Props {
   onToggleAudioOnly: () => void;
   warnWhenMuted: boolean;
   onToggleWarnWhenMuted: () => void;
+  blur: BackgroundBlur;
   presenceSound: boolean;
   onTogglePresenceSound: () => void;
   onSetTimebox: (endsAt: number | null) => void;
@@ -34,6 +36,7 @@ export function DeviceMenu({
   onToggleAudioOnly,
   warnWhenMuted,
   onToggleWarnWhenMuted,
+  blur,
   presenceSound,
   onTogglePresenceSound,
   onSetTimebox,
@@ -143,6 +146,38 @@ export function DeviceMenu({
           </span>
         </span>
       </label>
+
+      {/*
+        Shown only where the camera itself can do it. There is no software
+        fallback to offer, so on a device without platform blur the honest thing
+        is an absent control rather than a disabled one nobody can explain.
+      */}
+      {blur.native.kind !== 'none' && (
+        <label
+          className={`mt-4 flex items-start gap-2.5 border-t border-border pt-3.5 ${
+            blur.available ? 'cursor-pointer' : ''
+          }`}
+        >
+          <input
+            type="checkbox"
+            checked={blur.enabled}
+            onChange={() => void blur.toggle()}
+            // Read-only platform blur can be reported but not switched by a web
+            // page — only the system camera settings can change it.
+            disabled={!blur.available}
+            className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--color-accent)] disabled:opacity-50"
+          />
+          <span>
+            <span className="block text-sm font-medium">Blur my background</span>
+            <span className="mt-0.5 block text-xs leading-relaxed text-muted">
+              {blur.native.kind === 'readonly'
+                ? 'Controlled by your system camera settings.'
+                : 'Handled by your camera — nothing to download, and it lowers the bandwidth your video needs.'}
+            </span>
+            {blur.error && <span className="mt-1 block text-xs text-danger">{blur.error}</span>}
+          </span>
+        </label>
+      )}
 
       <div className="mt-4 border-t border-border pt-3.5">
         <p className="text-sm font-medium">Timebox this meeting</p>

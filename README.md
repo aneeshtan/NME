@@ -336,6 +336,10 @@ only when a `/r/:id` route is opened.
   Video is ~95% of what a meeting costs to carry, and in a large room most
   people are listening. See [docs/capacity.md](docs/capacity.md).
 - **Opus DTX** — stops sending during silence, which is most of a meeting.
+- **Platform background blur** — offered only where the camera or OS provides
+  it, so it costs nothing to download and nothing to run. It is a bandwidth
+  feature as much as a cosmetic one: a blurred background has far less
+  high-frequency detail and encodes to fewer bits.
 - Hardware encode/decode wherever the browser offers it; frame encryption runs
   in a **Web Worker**, never competing with rendering.
 

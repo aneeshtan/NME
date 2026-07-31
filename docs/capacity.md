@@ -251,11 +251,20 @@ Measured from the production build in this repository, gzip over the wire:
 The LiveKit client is never fetched on the home page — only when a meeting route
 opens.
 
-Background blur was removed. It carried three TensorFlow.js chunks (~190 KB
-gzip) plus a 332 KB model, all fetched on first use. It was correctly lazy, so
-it cost nothing until someone enabled it — but nothing is still cheaper, and the
-platform-native blur that some cameras expose covers the common case. The code
-is in git history if it is wanted back.
+Background blur is **platform-only**, and costs 3.5 KB. The software fallback it
+used to have carried three TensorFlow.js chunks (~190 KB gzip) plus a 332 KB
+model, fetched on first use; that is gone.
+
+Worth understanding why blur is kept at all when the goal is fewer bytes: a
+blurred background carries far less high-frequency detail, so it **encodes to
+fewer bits** — commonly 10–20% off a talking-head stream. Blur is a bandwidth
+feature that happens to look like a vanity one. Paying 520 KB and a per-frame
+GPU pipeline to obtain that saving inverted the point; getting it free from the
+camera does not.
+
+It appears only where the hardware provides it (Apple Silicon Portrait Effect,
+Windows Studio Effects). On macOS and ChromeOS the page can report the state but
+not change it — only the system camera settings can.
 
 ### Codec
 

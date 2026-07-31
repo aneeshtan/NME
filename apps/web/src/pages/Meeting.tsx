@@ -20,6 +20,7 @@ import { Chat } from '../room/Chat';
 import { useMessaging } from '../room/useMessaging';
 import { useMutedSpeechDetector } from '../room/useMutedSpeechDetector';
 import { usePresenceAlerts } from '../room/usePresenceAlerts';
+import { useBackgroundBlur } from '../room/useBackgroundBlur';
 import { useKnocks } from '../room/useKnocks';
 import { useBackgroundNotice } from '../room/useBackgroundNotice';
 import { useSpeakingTime } from '../room/useSpeakingTime';
@@ -153,6 +154,7 @@ export default function Meeting({ roomId: routeRoomId }: Props) {
   useAudioOnly(room, audioOnly);
 
   const notices = usePresenceAlerts(room, presenceSound);
+  const blur = useBackgroundBlur(room, room?.localParticipant.isCameraEnabled ?? false);
 
   const micLive = room?.localParticipant.isMicrophoneEnabled ?? false;
   const speakingWhileMuted = useMutedSpeechDetector(
@@ -626,6 +628,7 @@ export default function Meeting({ roomId: routeRoomId }: Props) {
               onToggleAudioOnly={() => setAudioOnly((on) => !on)}
               warnWhenMuted={warnWhenMuted}
               onToggleWarnWhenMuted={() => setWarnWhenMuted((on) => !on)}
+              blur={blur}
               presenceSound={presenceSound}
               onTogglePresenceSound={() => setPresenceSound((on) => !on)}
               onSetTimebox={(endsAt) => {
