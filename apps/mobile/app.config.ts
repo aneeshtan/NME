@@ -17,12 +17,14 @@ const HOST = process.env.NME_HOST ?? 'nmetalk.com';
 const ORIGIN = `https://${HOST}`;
 
 /**
- * The project site, which is where the privacy and support pages live. Kept
- * separate from ORIGIN because the meeting domain serves a single-page app and
- * has no room for static pages, while the site is published straight from
- * `docs/` on GitHub Pages.
+ * Where the privacy and "how it works" pages live — the app itself, now that
+ * they are real routes rather than a separate static site. That site was
+ * published from the repository, which is private, so nothing is published from
+ * it any more.
+ *
+ * Both URLs must resolve: each store requires them and a human follows them.
  */
-const SITE = process.env.NME_SITE_URL ?? 'https://aneeshtan.github.io/NME';
+const SITE = process.env.NME_SITE_URL ?? ORIGIN;
 
 const config: ExpoConfig = {
   name: 'NME Talk',
@@ -48,14 +50,8 @@ const config: ExpoConfig = {
   extra: {
     origin: ORIGIN,
     supportEmail: process.env.NME_SUPPORT_EMAIL ?? 'support@nmetalk.com',
-    /**
-     * Pointed at the project site rather than at `${ORIGIN}/support`, which is
-     * the meeting app and has no such route — the SPA would answer with the
-     * home page and a reviewer following the link would find no policy at all.
-     * Both stores require these to resolve, and both are checked by a human.
-     */
-    supportUrl: process.env.NME_SUPPORT_URL ?? `${SITE}/support.html`,
-    privacyUrl: process.env.NME_PRIVACY_URL ?? `${SITE}/privacy.html`,
+    supportUrl: process.env.NME_SUPPORT_URL ?? `${SITE}/how-it-works`,
+    privacyUrl: process.env.NME_PRIVACY_URL ?? `${SITE}/privacy`,
   },
 
   ios: {

@@ -10,7 +10,6 @@ paid services anywhere in the stack.
 
 ## Contents
 
-- [Project site](https://aneeshtan.github.io/NME/)
 - [Architecture](#architecture)
 - [Why LiveKit](#why-livekit)
 - [Encryption](#encryption)

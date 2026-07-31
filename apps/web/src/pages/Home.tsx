@@ -15,6 +15,7 @@
  */
 import { useCallback, useRef, useState } from 'react';
 import { Logo } from '../components/Logo';
+import { Footer } from '../components/Footer';
 import { ArrowRightIcon, PeopleIcon, ShieldIcon, VideoOffAllIcon } from '../components/icons';
 import { createRoomWithLobby, ApiError } from '@nme/core';
 import { buildShortMeetingUrl, deriveRoomId, generateRoomKey } from '@nme/core';
@@ -23,9 +24,6 @@ import { copyText } from '../components/CopyLinkButton';
 import { navigate } from '../lib/router';
 import { saveHostKey } from '../lib/storage';
 import { requestNoticePermission } from '../room/useBackgroundNotice';
-
-/** The project site, published from `docs/` in the repository. */
-const SITE = 'https://aneeshtan.github.io/NME';
 
 export function Home() {
   const [creating, setCreating] = useState(false);
@@ -228,41 +226,10 @@ export function Home() {
 
       {/*
         Where someone goes to check the claims above rather than take them on
-        trust. `rel="noreferrer"` keeps the meeting URL out of the Referer
-        header on the way out — the fragment is never sent, but the path can be.
+        trust. Both destinations are in-app routes now, so nothing leaves the
+        origin and there is no Referer to worry about.
       */}
-      {/*
-        One row: attribution and version on the left, the pages someone might
-        actually want on the right. The tagline that used to sit here said what
-        the headline above already says, so it was the thing to cut rather than
-        the version — that is the one item a bug report is useless without, and
-        it has to stay readable rather than hide behind a tooltip a phone cannot
-        open. It still wraps on a narrow screen; `flex-wrap` is what keeps that
-        from becoming an overflow.
-      */}
-      <footer className="mt-auto border-t border-border py-6">
-        <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center gap-x-4 gap-y-2 px-6 text-[0.8125rem] text-muted lg:px-8">
-          <span>&copy; {__BUILD_YEAR__} NME Talk</span>
-          <span aria-hidden="true">&middot;</span>
-          <span>
-            Version <span className="font-mono">{__APP_VERSION__}</span>
-          </span>
-          <span aria-hidden="true">&middot;</span>
-          <span>Created by AI, designed by F&amp;G</span>
-
-          <nav className="flex flex-wrap gap-x-6 gap-y-2 sm:ml-auto">
-            <a className="transition-colors hover:text-fg" href={SITE} target="_blank" rel="noreferrer">
-              How it works
-            </a>
-            <a className="transition-colors hover:text-fg" href={`${SITE}/privacy.html`} target="_blank" rel="noreferrer">
-              Privacy
-            </a>
-            <a className="transition-colors hover:text-fg" href={`${SITE}/support.html`} target="_blank" rel="noreferrer">
-              Support
-            </a>
-          </nav>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }

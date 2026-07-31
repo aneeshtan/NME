@@ -9,6 +9,13 @@ import { useRoute } from './lib/router';
  */
 const Meeting = lazy(() => import('./pages/Meeting'));
 
+/**
+ * Content pages are split out for the same reason: someone arriving to start a
+ * meeting should not download a privacy policy to do it.
+ */
+const Privacy = lazy(() => import('./pages/Privacy'));
+const HowItWorks = lazy(() => import('./pages/HowItWorks'));
+
 export function App() {
   const route = useRoute();
 
@@ -22,6 +29,16 @@ export function App() {
           </Suspense>
         </ErrorBoundary>
       </div>
+    );
+  }
+
+  if (route.name === 'privacy' || route.name === 'how') {
+    return (
+      <ErrorBoundary>
+        <Suspense fallback={<RouteFallback />}>
+          {route.name === 'privacy' ? <Privacy /> : <HowItWorks />}
+        </Suspense>
+      </ErrorBoundary>
     );
   }
 

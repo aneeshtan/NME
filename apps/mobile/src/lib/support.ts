@@ -28,8 +28,8 @@ interface SupportConfig {
 const extra = (Constants.expoConfig?.extra ?? {}) as SupportConfig;
 
 export const SUPPORT_EMAIL = extra.supportEmail ?? 'support@nmetalk.com';
-export const SUPPORT_URL = extra.supportUrl ?? 'https://aneeshtan.github.io/NME/support.html';
-export const PRIVACY_URL = extra.privacyUrl ?? 'https://aneeshtan.github.io/NME/privacy.html';
+export const SUPPORT_URL = extra.supportUrl ?? 'https://nmetalk.com/how-it-works';
+export const PRIVACY_URL = extra.privacyUrl ?? 'https://nmetalk.com/privacy';
 
 /**
  * Opens a prefilled report. The user sends it themselves, from their own mail
