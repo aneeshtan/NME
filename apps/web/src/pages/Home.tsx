@@ -233,22 +233,39 @@ export function Home() {
         header on the way out — the fragment is never sent, but the path can be.
       */}
       <footer className="mt-auto border-t border-border py-6">
-        <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center gap-x-6 gap-y-2 px-6 text-[0.8125rem] text-muted lg:px-8">
-          <span>End-to-end encrypted meetings.</span>
-          <nav className="flex flex-wrap gap-x-6 gap-y-2 sm:ml-auto">
-            <a className="transition-colors hover:text-fg" href={SITE} target="_blank" rel="noreferrer">
-              How it works
-            </a>
-            <a className="transition-colors hover:text-fg" href={`${SITE}/privacy.html`} target="_blank" rel="noreferrer">
-              Privacy
-            </a>
-            <a className="transition-colors hover:text-fg" href={`${SITE}/support.html`} target="_blank" rel="noreferrer">
-              Support
-            </a>
-            <a className="transition-colors hover:text-fg" href={REPO} target="_blank" rel="noreferrer">
-              Source
-            </a>
-          </nav>
+        <div className="mx-auto w-full max-w-5xl px-6 text-[0.8125rem] text-muted lg:px-8">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+            <span>End-to-end encrypted meetings.</span>
+            <nav className="flex flex-wrap gap-x-6 gap-y-2 sm:ml-auto">
+              <a className="transition-colors hover:text-fg" href={SITE} target="_blank" rel="noreferrer">
+                How it works
+              </a>
+              <a className="transition-colors hover:text-fg" href={`${SITE}/privacy.html`} target="_blank" rel="noreferrer">
+                Privacy
+              </a>
+              <a className="transition-colors hover:text-fg" href={`${SITE}/support.html`} target="_blank" rel="noreferrer">
+                Support
+              </a>
+              <a className="transition-colors hover:text-fg" href={REPO} target="_blank" rel="noreferrer">
+                Source
+              </a>
+            </nav>
+          </div>
+
+          {/*
+            Second row, quieter than the first: none of this is something a
+            visitor came here to act on, but the version is the one thing a bug
+            report is useless without — so it has to be readable rather than
+            hidden behind a tooltip a phone cannot open.
+          */}
+          <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border pt-4 text-xs">
+            <span>&copy; {__BUILD_YEAR__} NME Talk</span>
+            <span aria-hidden="true">&middot;</span>
+            <span>
+              Version <span className="font-mono">{__APP_VERSION__}</span>
+            </span>
+            <span className="sm:ml-auto">Created by AI, designed by F&amp;G</span>
+          </div>
         </div>
       </footer>
     </div>

@@ -1,6 +1,24 @@
+import { readFileSync } from 'node:fs';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react-swc';
 import tailwindcss from '@tailwindcss/vite';
+
+/**
+ * Build stamp.
+ *
+ * The version is read from package.json rather than duplicated in the source,
+ * so `npm version` remains the single place it changes. It is injected as a
+ * constant rather than imported: importing the JSON would pull the whole file
+ * into the bundle, publishing the dependency list to anyone who opens it.
+ *
+ * The year is taken at build time, not from `new Date()` in the browser. A
+ * copyright notice states when the work was published; rendering it from the
+ * visitor's clock instead means a device with the wrong date silently prints
+ * the wrong notice.
+ */
+const { version } = JSON.parse(
+  readFileSync(new URL('./package.json', import.meta.url), 'utf8'),
+) as { version: string };
 
 /**
  * Build configuration.
@@ -12,6 +30,13 @@ import tailwindcss from '@tailwindcss/vite';
  */
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+
+  // Substituted literally at build time, so both fold into string constants and
+  // cost nothing at runtime. Declared for TypeScript in src/globals.d.ts.
+  define: {
+    __APP_VERSION__: JSON.stringify(version),
+    __BUILD_YEAR__: JSON.stringify(String(new Date().getFullYear())),
+  },
 
   build: {
     target: 'es2022',
