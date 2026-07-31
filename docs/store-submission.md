@@ -1,4 +1,4 @@
-# Publishing NME to the App Store and Google Play
+# Publishing NME Talk to the App Store and Google Play
 
 Written in the order things will block you, not in the order the consoles
 present them. The build is the easy part; two policy items and one export-law
@@ -36,10 +36,10 @@ Requirement 1 is impossible here, and not by oversight — end-to-end encryption
 means no operator, including you, can inspect content. Do not attempt to claim
 otherwise, and do not weaken encryption to satisfy a form.
 
-The argument that works is that NME is *communication*, not a content platform.
+The argument that works is that NME Talk is *communication*, not a content platform.
 FaceTime, Signal, and WhatsApp calls are all E2EE, all unfilterable, and all
 approved, because content moves between people who deliberately exchanged an
-invitation rather than being published to strangers. NME is closer to those
+invitation rather than being published to strangers. NME Talk is closer to those
 than to a random-chat app: there is no discovery, no directory, no matching —
 you can only reach someone by sending them a link.
 
@@ -77,7 +77,7 @@ Google Play's equivalent policy behaves the same way.
 
 ## 3. Export compliance — do not get this one wrong
 
-NME implements AES-GCM end-to-end encryption of user content. That is **not**
+NME Talk implements AES-GCM end-to-end encryption of user content. That is **not**
 covered by the common exemptions, which are for apps that only use HTTPS or
 only call the operating system's own crypto for authentication.
 
@@ -100,7 +100,7 @@ France additionally requires a declaration for apps distributed there; Apple
 prompts for this during submission.
 
 **This is a legal matter and the above is a summary of the usual path, not
-legal advice.** If NME will be distributed commercially or at scale, have
+legal advice.** If NME Talk will be distributed commercially or at scale, have
 somebody qualified confirm the classification.
 
 ---
@@ -173,7 +173,7 @@ access. Apple has no equivalent requirement.
 
 ### Privacy labels (Apple) and Data Safety (Google)
 
-NME's answers are unusually short, and all of them are true:
+NME Talk's answers are unusually short, and all of them are true:
 
 | Question | Answer |
 |---|---|
@@ -204,14 +204,14 @@ unrestricted web/user content in the questionnaire.
 Reviewers cannot test this app without a link. Give them one:
 
 ```
-NME has no accounts and no sign-in. To test:
+NME Talk has no accounts and no sign-in. To test:
 
 1. Open the app and tap "New meeting".
 2. Tap "Share link" and open the link on a second device, or in a
    browser at https://nmetalk.com
 3. Both participants are now in an end-to-end encrypted meeting.
 
-Regarding Guideline 1.2: NME is a communication tool, not a content
+Regarding Guideline 1.2: NME Talk is a communication tool, not a content
 platform. There is no discovery, directory, or matching — a meeting can
 only be joined by someone who was sent its link, in the same way as an
 encrypted call. Media and messages are end-to-end encrypted, so no

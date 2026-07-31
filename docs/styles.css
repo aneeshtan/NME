@@ -345,6 +345,18 @@ section:first-of-type {
   color: var(--fg);
 }
 
+/* Second footer row: attribution and copyright, quieter than the links above. */
+.footer-legal {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+  font-size: 0.8125rem;
+}
+
+.footer-legal .footer-credit {
+  margin-left: auto;
+}
+
 @media (max-width: 560px) {
   .site-footer nav {
     margin-left: 0;

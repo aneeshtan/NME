@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────────────────────────
-#  NME — production stack.
+#  NME Talk — production stack.
 #
 #    caddy   → TLS, static SPA, /api proxy, SFU signaling proxy
 #    server  → stateless control plane (rooms + tokens)

@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>NME — end-to-end encrypted group video meetings</title>
+<title>NME Talk — end-to-end encrypted group video meetings</title>
 <meta name="description" content="Minimal, fast, self-hostable group video meetings. Audio and video are encrypted on your device; the server relays the call without being able to decrypt it. Open source and self-hostable.">
 <meta name="theme-color" content="#0b0d10">
 <meta property="og:type" content="website">
-<meta property="og:title" content="NME — end-to-end encrypted group video meetings">
+<meta property="og:title" content="NME Talk — end-to-end encrypted group video meetings">
 <meta property="og:description" content="The server relays your call without being able to see or hear it. Self-hostable in three commands. Open source.">
 <link rel="stylesheet" href="styles.css">
 <style>
@@ -227,7 +227,7 @@
       <span class="mark" aria-hidden="true">
         <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
       </span>
-      NME
+      NME Talk
     </a>
     <nav class="site-nav">
       <a href="#how" class="hide-sm">How it works</a>
@@ -246,7 +246,7 @@
       <h1>The server relays your meeting. It cannot hear it.</h1>
 
       <p class="lede">
-        NME is a small, fast group video app. Audio, video, and messages are
+        NME Talk is a small, fast group video app. Audio, video, and messages are
         encrypted on your device and decrypted only on the devices of the people
         you invited. Nothing in between holds the key — including the server you
         are running it on.
@@ -290,7 +290,7 @@
             nearly every one of them can record you.
           </p>
           <p class="lede" style="font-size: 0.9375rem; margin-top: 14px">
-            NME adds a second layer underneath. Frames are encrypted with
+            NME Talk adds a second layer underneath. Frames are encrypted with
             AES-GCM before they are handed to WebRTC at all, so the SFU forwards
             ciphertext it has no key for. It can still do its job — deciding who
             needs which quality — because selecting between encrypted layers
@@ -352,7 +352,7 @@
       <ul class="claims">
         <li><span class="yes" aria-hidden="true">✔</span><span><b>Content is unreadable by the server.</b> Audio, video, screen share, and chat are encrypted before they leave your device.</span></li>
         <li><span class="yes" aria-hidden="true">✔</span><span><b>A seized or subpoenaed server yields ciphertext.</b> There is no key on it to hand over, and nothing recorded to seize.</span></li>
-        <li><span class="yes" aria-hidden="true">✔</span><span><b>No downgrade path.</b> If a browser cannot encrypt end to end, NME refuses to connect rather than quietly joining in the clear.</span></li>
+        <li><span class="yes" aria-hidden="true">✔</span><span><b>No downgrade path.</b> If a browser cannot encrypt end to end, NME Talk refuses to connect rather than quietly joining in the clear.</span></li>
         <li><span class="no" aria-hidden="true">✘</span><span><b>Metadata is visible.</b> The server sees that a meeting exists, when, for how long, and how much bandwidth each participant used.</span></li>
         <li><span class="no" aria-hidden="true">✘</span><span><b>Anyone with the link can join.</b> The link is the secret. Send it the way you would send a password.</span></li>
         <li><span class="no" aria-hidden="true">✘</span><span><b>Participants can record.</b> Everyone in a call necessarily holds decrypted media. No software can prevent a screen recorder, let alone a second phone pointed at the screen.</span></li>
@@ -373,7 +373,7 @@
         <div>
           <pre><code><span class="tok-c"># Clone, generate secrets, run.</span>
 git clone https://github.com/aneeshtan/NME.git
-<span class="tok-k">cd</span> NME
+<span class="tok-k">cd</span> NME Talk
 npm run keys        <span class="tok-c"># writes .env</span>
 
 docker compose -f infra/docker-compose.yml \
@@ -403,12 +403,16 @@ docker compose -f infra/docker-compose.yml \
 
 <footer class="site-footer">
   <div class="wrap">
-    <span>NME — end-to-end encrypted meetings.</span>
+    <span>NME Talk — end-to-end encrypted meetings.</span>
     <nav>
       <a href="https://github.com/aneeshtan/NME">Source</a>
       <a href="privacy.html">Privacy</a>
       <a href="support.html">Support</a>
     </nav>
+  </div>
+  <div class="wrap footer-legal">
+    <span>&copy; 2026 NME Talk</span>
+    <span class="footer-credit">Created by AI, designed by F&amp;G</span>
   </div>
 </footer>
 

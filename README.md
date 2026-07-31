@@ -1,4 +1,4 @@
-# NME
+# NME Talk
 
 Minimal, fast, end-to-end encrypted group video meetings. No account, no install.
 
@@ -388,8 +388,8 @@ insertion.
   issuance will fail:
 
 ```
-nmetalk.com.   A   <your-server-ip>
-sfu.nmetalk.com.    A   <your-server-ip>
+nmetalk.com.       A   <your-server-ip>
+sfu.nmetalk.com.   A   <your-server-ip>
 ```
 
 - Open ports: **443/tcp**, **443/udp** (HTTP/3), **80/tcp** (ACME), **7882/udp**
@@ -409,6 +409,10 @@ docker compose -f infra/docker-compose.yml logs -f caddy   # watch certs issue
 ```
 
 Open `https://nmetalk.com`. That is the whole deployment.
+
+Running behind a panel that already owns 80/443 (CloudPanel, Plesk, an existing
+nginx) needs three extra lines in `.env` and two proxy sites — see
+[docs/vps-install.md](docs/vps-install.md).
 
 ### Verify
 

@@ -28,8 +28,8 @@ interface SupportConfig {
 const extra = (Constants.expoConfig?.extra ?? {}) as SupportConfig;
 
 export const SUPPORT_EMAIL = extra.supportEmail ?? 'support@nmetalk.com';
-export const SUPPORT_URL = extra.supportUrl ?? 'https://nmetalk.com/support';
-export const PRIVACY_URL = extra.privacyUrl ?? 'https://nmetalk.com/privacy';
+export const SUPPORT_URL = extra.supportUrl ?? 'https://aneeshtan.github.io/NME/support.html';
+export const PRIVACY_URL = extra.privacyUrl ?? 'https://aneeshtan.github.io/NME/privacy.html';
 
 /**
  * Opens a prefilled report. The user sends it themselves, from their own mail
@@ -40,7 +40,7 @@ export async function reportParticipant(options: {
   roomId: string;
   displayName: string;
 }): Promise<void> {
-  const subject = `NME abuse report — room ${options.roomId}`;
+  const subject = `NME Talk abuse report — room ${options.roomId}`;
   const body = [
     'Please describe what happened:',
     '',
@@ -50,7 +50,7 @@ export async function reportParticipant(options: {
     `Room: ${options.roomId}`,
     `Time: ${new Date().toISOString()}`,
     '',
-    'Note: NME is end-to-end encrypted, so no recording, message, or media',
+    'Note: NME Talk is end-to-end encrypted, so no recording, message, or media',
     'from this meeting exists in a readable form on the server. Reports are',
     'acted on by revoking the room and, where warranted, blocking the network',
     'address it was joined from.',

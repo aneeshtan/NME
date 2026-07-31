@@ -376,7 +376,7 @@ function toRoomError(cause: unknown): RoomError {
     return {
       code: 'E2EE_UNSUPPORTED',
       message:
-        'This browser cannot encrypt media end-to-end. Please use a recent version of Chrome, Edge, Safari, or Firefox. NME will not connect without encryption.',
+        'This browser cannot encrypt media end-to-end. Please use a recent version of Chrome, Edge, Safari, or Firefox. NME Talk will not connect without encryption.',
       recoverable: false,
     };
   }

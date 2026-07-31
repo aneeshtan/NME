@@ -69,7 +69,7 @@ function foldLine(line: string): string {
 
 export function buildIcs(event: CalendarEvent): string {
   const end = new Date(event.start.getTime() + event.durationMinutes * 60_000);
-  const uid = `${crypto.randomUUID()}@nme`;
+  const uid = `${crypto.randomUUID()}@nmetalk.com`;
 
   const description = [
     `Join the meeting: ${event.meetingUrl}`,
@@ -81,7 +81,7 @@ export function buildIcs(event: CalendarEvent): string {
   const lines = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//NME//Meeting//EN',
+    'PRODID:-//NME Talk//Meeting//EN',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     'BEGIN:VEVENT',

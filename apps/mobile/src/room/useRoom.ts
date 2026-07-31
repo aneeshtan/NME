@@ -338,7 +338,7 @@ function toRoomError(cause: unknown): RoomError {
     return {
       code: 'DEVICE_PERMISSION',
       message:
-        'Camera or microphone access was blocked. Enable them for NME in Settings and try again.',
+        'Camera or microphone access was blocked. Enable them for NME Talk in Settings and try again.',
       recoverable: true,
     };
   }

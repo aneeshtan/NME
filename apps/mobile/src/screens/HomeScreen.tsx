@@ -93,7 +93,7 @@ export function HomeScreen({ onOpenKey }: Props) {
         ]}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.wordmark}>NME</Text>
+        <Text style={styles.wordmark}>NME Talk</Text>
         <Text style={styles.tagline}>
           Encrypted meetings. The server relays your call without being able to see or hear it.
         </Text>
@@ -187,7 +187,9 @@ const styles = StyleSheet.create({
     color: theme.color.fg,
     fontSize: 40,
     fontWeight: '800',
-    letterSpacing: 6,
+    // Tracking was 6, set when the wordmark was three letters. At eight
+    // characters that much spacing overruns a 375pt screen and wraps mid-word.
+    letterSpacing: 2,
     textAlign: 'center',
   },
   tagline: {

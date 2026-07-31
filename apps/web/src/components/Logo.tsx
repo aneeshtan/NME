@@ -9,7 +9,7 @@ export function Logo({ compact = false }: { compact?: boolean }) {
         viewBox="0 0 32 32"
         className="h-7 w-7 shrink-0"
         role="img"
-        aria-label="NME"
+        aria-label="NME Talk"
         focusable="false"
       >
         <rect width="32" height="32" rx="9" className="fill-accent" />
@@ -19,7 +19,7 @@ export function Logo({ compact = false }: { compact?: boolean }) {
         />
       </svg>
       {!compact && (
-        <span className="text-[1.0625rem] font-semibold tracking-tight text-fg">NME</span>
+        <span className="text-[1.0625rem] font-semibold tracking-tight text-fg">NME Talk</span>
       )}
     </span>
   );

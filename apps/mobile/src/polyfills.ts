@@ -50,5 +50,5 @@ if (typeof globalThis.crypto === 'undefined' || !globalThis.crypto.subtle) {
  * rather than discover in the field.
  */
 if (typeof globalThis.TextEncoder === 'undefined') {
-  throw new Error('TextEncoder is missing; this Hermes build is too old for NME.');
+  throw new Error('TextEncoder is missing; this Hermes build is too old for NME Talk.');
 }
