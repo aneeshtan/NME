@@ -14,6 +14,7 @@ import { useRoom, screenShareTrack } from '../room/useRoom';
 import { useDevices } from '../room/useDevices';
 import { useWakeLock } from '../room/useWakeLock';
 import { useAudioOnly } from '../room/useAudioOnly';
+import { prefersReducedData } from '../room/useSaveData';
 import { DeviceMenu } from '../room/DeviceMenu';
 import { Chat } from '../room/Chat';
 import { useMessaging } from '../room/useMessaging';
@@ -75,7 +76,14 @@ export default function Meeting({ roomId: routeRoomId }: Props) {
   const [joined, setJoined] = useState(false);
   const [participantsOpen, setParticipantsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [audioOnly, setAudioOnly] = useState(false);
+  /**
+   * Audio-only starts on for anyone whose device has asked for less data.
+   * Receiving is the expensive direction — roughly three times the uplink in a
+   * five-person call — so this is the half that matters, and the local camera
+   * keeps publishing so other people still see them. Announced, never silent.
+   */
+  const [audioOnly, setAudioOnly] = useState(prefersReducedData);
+  const [dataSaverNotice, setDataSaverNotice] = useState(prefersReducedData);
   const [chatOpen, setChatOpen] = useState(false);
   const [pinnedIdentity, setPinnedIdentity] = useState<string | null>(null);
   const [followSpeaker, setFollowSpeaker] = useState(false);
@@ -245,7 +253,16 @@ export default function Meeting({ roomId: routeRoomId }: Props) {
       const next = !room.localParticipant.isScreenShareEnabled;
       // Include system audio when the browser offers it — sharing a video with
       // no sound is a recurring frustration in every other tool.
-      await room.localParticipant.setScreenShareEnabled(next, { audio: true });
+      // `detail` tells the encoder it is looking at a screen rather than a
+      // face, so it spends its budget on sharpness instead of on smoothing
+      // motion that is not there. `text` was the alternative and goes further,
+      // but it lets the frame rate collapse — and a document being scrolled at
+      // four frames a second reads as broken, which is the case the 15fps
+      // ceiling below was chosen to avoid.
+      await room.localParticipant.setScreenShareEnabled(next, {
+        audio: true,
+        contentHint: 'detail',
+      });
     } catch {
       // The user dismissed the picker; nothing to report.
     } finally {
@@ -395,6 +412,32 @@ export default function Meeting({ roomId: routeRoomId }: Props) {
               {notice.text}
             </span>
           ))}
+        </div>
+      )}
+
+      {dataSaverNotice && (
+        <div
+          role="status"
+          className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-elevated px-4 py-2 text-center text-sm"
+        >
+          <span>Incoming video is off — your device asked to save data.</span>
+          <button
+            type="button"
+            onClick={() => {
+              setAudioOnly(false);
+              setDataSaverNotice(false);
+            }}
+            className="shrink-0 text-xs font-semibold text-accent underline"
+          >
+            Show video
+          </button>
+          <button
+            type="button"
+            onClick={() => setDataSaverNotice(false)}
+            className="shrink-0 text-xs font-semibold text-muted underline"
+          >
+            Dismiss
+          </button>
         </div>
       )}
 

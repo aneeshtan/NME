@@ -155,6 +155,33 @@ It is a default, not a policy: the saved preference is untouched and the camera
 button works normally. Change `CAMERA_OFF_ABOVE` in
 [Meeting.tsx](../apps/web/src/pages/Meeting.tsx) to move the line.
 
+### Data Saver
+
+Anyone whose device asks for reduced data joins with **incoming video off**, and
+a notice offering one click to turn it back on. Two signals are checked:
+`prefers-reduced-data` (standards-track, and the only one Safari will implement)
+and `navigator.connection.saveData` / a 2G effective type (absent from Safari,
+present across Chrome and Android — which is where metered plans actually are).
+
+Receiving is the expensive direction, roughly three times the uplink in a
+five-person call, so this is the half worth switching off. The local camera keeps
+publishing, so other people still see them.
+
+Read once at join, not watched: flipping a meeting into audio-only mid-sentence
+because a phone briefly dropped to 3G would be worse than the data it saved.
+
+### Screen share
+
+Screen shares are published with `contentHint: 'detail'`, which tells the encoder
+it is looking at a screen rather than a face and to spend its budget on sharpness
+instead of on smoothing motion that is not there. `'text'` goes further but lets
+the frame rate collapse, and a document scrolled at four frames a second reads as
+broken.
+
+Note that screen share is one stream per *meeting*, not per participant, so it
+does not scale with room size and is not a capacity lever — this is a quality
+change that happens to also reduce bitrate.
+
 ### Empty rooms
 
 `ROOM_EMPTY_TIMEOUT` is 30s, not the LiveKit default of 120. Note that the value
@@ -229,6 +256,24 @@ gzip) plus a 332 KB model, all fetched on first use. It was correctly lazy, so
 it cost nothing until someone enabled it — but nothing is still cheaper, and the
 platform-native blur that some cameras expose covers the common case. The code
 is in git history if it is wanted back.
+
+### Codec
+
+`VIDEO_CODEC` defaults to `vp8`. Switching to `vp9` is roughly 30% fewer bits
+for the same quality and is already plumbed end to end — it is a one-word change
+in `.env`.
+
+It is not a free win, and the trade runs the wrong way at small scale: VP9
+encoding is markedly more expensive in software, and hardware encode for it is
+rare even where hardware decode is common. You would be spending your users'
+battery to save bandwidth you may not be short of. Worth it when egress is the
+bill; not before.
+
+Test it on a staging deployment before committing — LiveKit may select SVC mode
+for VP9, and SVC layer-dropping requires the SFU to read payload descriptors,
+which needs confirming against E2EE for your version. Ten minutes with the
+weakest device you support answers both the compatibility and the battery
+question.
 
 ### If you need it lighter still
 
