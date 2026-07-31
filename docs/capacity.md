@@ -104,7 +104,15 @@ plane is already stateless. See the Scaling section of the README.
 
 ---
 
-## Room-size-aware publishing
+## Publishing defaults
+
+Every publisher caps at **24fps** with the bitrate ceiling cut to 80% of the
+LiveKit preset. Both halves are needed: rate control targets the ceiling
+regardless, so lowering the frame rate alone just spends more bits per frame.
+24fps is the floor for faces — below about 20 a talking head reads as a
+slideshow.
+
+### Room-size-aware publishing
 
 When `MAX_PARTICIPANTS` exceeds 25, clients change how they publish
 ([connect.ts](../apps/web/src/room/connect.ts)):
@@ -131,6 +139,28 @@ threshold.
 
 The threshold is deliberately above the default so an unmodified deployment
 behaves exactly as it did before.
+
+### Camera off on a crowded join
+
+Someone joining a room that already holds more than **12** people keeps their
+camera off, with an on-screen notice and a one-click way to turn it on.
+
+This is the largest single cost lever available, because video is roughly 95% of
+what a meeting carries and in a room of thirty most people are listening. The
+decision uses the live population at the moment of joining, not
+`MAX_PARTICIPANTS` — that is only a ceiling, and a four-person call on a
+fifty-capacity deployment should behave like a four-person call.
+
+It is a default, not a policy: the saved preference is untouched and the camera
+button works normally. Change `CAMERA_OFF_ABOVE` in
+[Meeting.tsx](../apps/web/src/pages/Meeting.tsx) to move the line.
+
+### Empty rooms
+
+`ROOM_EMPTY_TIMEOUT` is 30s, not the LiveKit default of 120. Note that the value
+in `infra/livekit.yaml` is *not* the one that applies: `auto_create` is off, so
+every room is created explicitly by the control plane with the environment's
+setting. Change it in `.env`.
 
 ---
 

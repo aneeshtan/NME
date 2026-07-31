@@ -78,7 +78,14 @@ webhook:
 room:
   # Terminate empty rooms promptly; an idle room still costs a goroutine and a
   # slot in the room map.
-  empty_timeout: 120
+  #
+  # 30s rather than 120. The window only has to outlast a reconnect — a laptop
+  # sleeping, a Wi-Fi to cellular handover — and the client's own reconnect
+  # budget covers far longer than that anyway by rejoining rather than relying
+  # on the room still being there. At a few thousand meetings a day, holding
+  # every finished room for two minutes is a standing population of dead rooms
+  # for no benefit.
+  empty_timeout: 30
   departure_timeout: 20
   max_participants: 25
   # Rooms are created explicitly by the control plane, which is what lets it

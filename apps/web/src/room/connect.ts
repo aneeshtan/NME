@@ -151,7 +151,29 @@ function buildRoomOptions(
       simulcast: true,
       videoSimulcastLayers: [VideoPresets.h180, VideoPresets.h360],
       videoCodec: config.videoCodec,
-      videoEncoding: crowded ? VideoPresets.h540.encoding : VideoPresets.h720.encoding,
+
+      /**
+       * 24fps rather than the preset's 30, with the bitrate ceiling brought
+       * down to match.
+       *
+       * Both halves are needed. Lowering the frame rate alone saves nothing:
+       * rate control targets the ceiling regardless, so an encoder given the
+       * same budget and fewer frames simply spends more on each one. Lowering
+       * the ceiling is what turns the reduction into bytes; capping the frame
+       * rate is what stops that smaller budget being spread thin enough to
+       * smear motion.
+       *
+       * 24fps is the floor for faces. Below roughly 20 a talking head starts to
+       * read as a slideshow, and the whole point of video in a meeting is the
+       * expression rather than the motion — this is not sport.
+       */
+      videoEncoding: {
+        ...(crowded ? VideoPresets.h540.encoding : VideoPresets.h720.encoding),
+        maxFramerate: 24,
+        maxBitrate: Math.round(
+          (crowded ? VideoPresets.h540.encoding : VideoPresets.h720.encoding).maxBitrate * 0.8,
+        ),
+      },
 
       // Opus DTX: stop sending packets during silence. Meaningful savings in a
       // meeting, where most participants are listening most of the time.

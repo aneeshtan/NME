@@ -92,7 +92,7 @@ export const config = Object.freeze({
 
   room: Object.freeze({
     maxParticipants: integer('MAX_PARTICIPANTS', 25, 2, 100),
-    emptyTimeout: integer('ROOM_EMPTY_TIMEOUT', 120, 10, 3600),
+    emptyTimeout: integer('ROOM_EMPTY_TIMEOUT', 30, 10, 3600),
     departureTimeout: integer('ROOM_DEPARTURE_TIMEOUT', 20, 5, 3600),
     tokenTtlSeconds: integer('TOKEN_TTL', 120, 30, 900),
   }),

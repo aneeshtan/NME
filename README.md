@@ -329,8 +329,12 @@ only when a `/r/:id` route is opened.
   the SFU: `adaptiveStream` already pauses tracks scrolled out of view, but a
   desktop grid puts every tile on screen at once, so nothing was paused.
 - **Room-size-aware publishing** — deployments configured above 25 participants
-  capture at 540p instead of 720p and drop Opus RED. See
-  [docs/capacity.md](docs/capacity.md).
+  capture at 540p instead of 720p and drop Opus RED. Every publisher caps at
+  24fps with a matching bitrate ceiling.
+- **Camera off on a crowded join** — joining a room that already holds more than
+  twelve people leaves your camera off, with a notice and a one-click override.
+  Video is ~95% of what a meeting costs to carry, and in a large room most
+  people are listening. See [docs/capacity.md](docs/capacity.md).
 - **Opus DTX** — stops sending during silence, which is most of a meeting.
 - Hardware encode/decode wherever the browser offers it; frame encryption runs
   in a **Web Worker**, never competing with rendering.

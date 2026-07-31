@@ -35,6 +35,15 @@ interface Props {
   roomId: string | null;
 }
 
+/**
+ * Above this many people already in the room, a joiner's camera stays off
+ * until they ask for it. Twelve, because that is roughly where a meeting stops
+ * being a conversation and starts being an audience — and it is comfortably
+ * above the nine tiles the grid renders, so nobody is held back from a room
+ * where they would have been visible anyway.
+ */
+const CAMERA_OFF_ABOVE = 12;
+
 export default function Meeting({ roomId: routeRoomId }: Props) {
   // Read once on mount: the fragment must not be re-read after navigation, and
   // it is the one value the server can never supply.
@@ -74,6 +83,8 @@ export default function Meeting({ roomId: routeRoomId }: Props) {
   const [reactionsOpen, setReactionsOpen] = useState(false);
   const [presenceSound, setPresenceSound] = useState(true);
   const [busy, setBusy] = useState(false);
+  /** Population at join, when a saved camera preference was not honoured. */
+  const [cameraHeldOff, setCameraHeldOff] = useState<number | null>(null);
 
   const hostKey = useMemo(() => loadHostKey(roomId), [roomId]);
   // Anyone in the meeting can admit, so the local identity is the credential
@@ -159,12 +170,32 @@ export default function Meeting({ roomId: routeRoomId }: Props) {
     if (status !== 'connected' || !room) return;
     let cancelled = false;
 
+    /**
+     * Joining a room that is already crowded leaves the camera off.
+     *
+     * Video is around 95% of what a meeting costs to carry, so the cheapest
+     * large meeting is the one where most cameras are off — and in a room of
+     * thirty, most people are listening. Defaulting them *on* means everyone
+     * pays for thirty streams to look at nine tiles.
+     *
+     * Decided from the live population at the moment of joining rather than
+     * from `maxParticipants`, which is only a ceiling: a four-person call on a
+     * deployment configured for fifty should behave like a four-person call.
+     *
+     * It is a default, not a policy. The camera button works normally, and the
+     * notice below says what happened — a camera that silently ignores a saved
+     * preference is indistinguishable from a bug.
+     */
+    const population = room.remoteParticipants.size + 1;
+    const crowded = population > CAMERA_OFF_ABOVE;
+
     void (async () => {
       try {
         if (prefs.micEnabled) await room.localParticipant.setMicrophoneEnabled(true);
-        if (!cancelled && prefs.cameraEnabled) {
+        if (!cancelled && prefs.cameraEnabled && !crowded) {
           await room.localParticipant.setCameraEnabled(true);
         }
+        if (!cancelled && prefs.cameraEnabled && crowded) setCameraHeldOff(population);
       } catch {
         if (!cancelled) setPrefs({ micEnabled: false, cameraEnabled: false });
       }
@@ -364,6 +395,34 @@ export default function Meeting({ roomId: routeRoomId }: Props) {
               {notice.text}
             </span>
           ))}
+        </div>
+      )}
+
+      {cameraHeldOff !== null && (
+        <div
+          role="status"
+          className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-elevated px-4 py-2 text-center text-sm"
+        >
+          <span>
+            Your camera stayed off — {cameraHeldOff} people were already here.
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              setCameraHeldOff(null);
+              void toggleCamera();
+            }}
+            className="shrink-0 text-xs font-semibold text-accent underline"
+          >
+            Turn it on
+          </button>
+          <button
+            type="button"
+            onClick={() => setCameraHeldOff(null)}
+            className="shrink-0 text-xs font-semibold text-muted underline"
+          >
+            Dismiss
+          </button>
         </div>
       )}
 
