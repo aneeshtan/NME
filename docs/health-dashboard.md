@@ -46,11 +46,26 @@ specific meeting happened, when, for how long, and how many people attended —
 without the operator intending to reveal anything. Aggregate counters cannot be
 interrogated that way by anyone, including the operator.
 
-**IP addresses.** They already appear in request logs for rate limiting, which
-the policy discloses and which rotate. Surfacing them in a dashboard would turn a
-rotating operational log into a browsable record of who connected.
+**Addresses of anyone who simply used the service.** A record of who connected is
+the artefact this design avoids everywhere else.
 
 Display names are filtered out of logs and never reach the metrics at all.
+
+### The one exception: sources that were refused
+
+Blocking is impossible without holding the address of the thing being blocked, so
+an address that generates repeated *rejections* is retained. The policy already
+says an address is "recorded in operational logs used for rate limiting and abuse
+handling", and this is that.
+
+The distinction that keeps it honest: **this is a list of who was turned away, not
+a list of who joined a meeting.** An address appears only after five refusals in
+six hours, the list is capped at 100 entries, and it ages out. Ordinary users
+generate almost none, because they arrive by link rather than by guessing.
+
+Blocks expire — 24 hours by default, 30 days maximum. A permanent list would
+quietly become the durable record everything else here avoids, and addresses get
+reassigned to other people.
 
 ### If you ever want per-meeting detail
 
@@ -62,15 +77,39 @@ not a legitimate thing to add quietly because a graph would be nicer.
 
 | Panel | Use |
 | --- | --- |
-| **Right now** — active meetings, participants, memory, uptime | Live load |
+| **Right now** — meetings, participants, memory, CPU, event-loop lag, uptime | Live load |
 | **Last 24 hours** — meetings created, joins, peak participants, rejected joins | Capacity trend |
 | **Rejections by reason** — `bad_room_id`, `bad_name`, `room_full` | The abuse signal |
 | **Meeting length** — histogram and average | Whether usage matches expectations |
 | **Meetings per hour** | Where the peaks are |
+| **Sources being refused** | Addresses to consider blocking, with a one-click block |
+| **Blocked** | Current blocks, with expiry and an unblock button |
 
 `bad_room_id` climbing steadily is what a scripted attempt against the server
 looks like: someone walking through room identifiers hoping to find a live one.
 Ordinary users generate almost none, because they arrive by link.
+
+**Event-loop lag is the resource number to watch.** Memory and CPU can both look
+healthy while the loop is blocked and every request is queued behind something
+synchronous. Sustained lag above roughly 100ms means this process is the
+bottleneck — which, given the control plane measures ~15k req/s, would itself be
+worth investigating rather than scaling around.
+
+## Blocking
+
+The rate limiter already throttles automatically. Blocking is the layer above it:
+refusing a source outright, which is the difference between slowing an abuser down
+and stopping them.
+
+A blocked address gets a bare 403 with no explanation — telling it why would tell
+it what to change. The check runs before anything else does work, so a blocked
+source costs a map lookup. Webhooks are exempt: they arrive from LiveKit over the
+compose network with their own signature, and blocking that address would take the
+SFU's replay detection down with it.
+
+Blocks are stored in Redis where it is configured, because a block applied on one
+replica has to hold on all of them, with an in-process fallback for single-node
+deployments — the same arrangement as the lobby and the nonce store.
 
 ## Where the numbers come from
 

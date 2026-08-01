@@ -20,9 +20,16 @@
  * people attended. Aggregate counters cannot be queried that way by anyone,
  * including the operator.
  *
- * No IP addresses. They already appear in request logs for rate limiting, which
- * the policy discloses; surfacing them in a dashboard would turn a rotating log
- * into a browsable record of who connected.
+ * No IP addresses for anyone who simply used the service. A record of who
+ * connected is exactly what this design avoids everywhere else.
+ *
+ * Addresses that generate *rejections* are the one exception, and the
+ * distinction is the whole argument: this is a list of sources that were
+ * refused, not a list of people who joined meetings. The policy already says an
+ * address is "recorded in operational logs used for rate limiting and abuse
+ * handling", and an operator cannot block what they cannot see. The list is
+ * bounded, holds only addresses at or above a threshold of refusals, and ages
+ * out with the rest of the window.
  *
  * No display names. They are filtered out of logs and have no business here.
  *
@@ -75,6 +82,39 @@ const durations = {
   totalMinutes: 0,
 };
 
+/**
+ * Sources that have been refused, so an operator can act on them.
+ *
+ * Bounded and rolling. Only an address that has been rejected at least
+ * OFFENDER_THRESHOLD times is ever surfaced, which keeps a single fat-fingered
+ * meeting code from putting somebody on a list.
+ */
+const OFFENDER_THRESHOLD = 5;
+const OFFENDER_LIMIT = 100;
+const OFFENDER_TTL_MS = 6 * 3_600_000;
+
+interface Offender {
+  count: number;
+  firstAt: number;
+  lastAt: number;
+  reasons: Map<string, number>;
+}
+
+const offenders = new Map<string, Offender>();
+
+function pruneOffenders(now: number): void {
+  for (const [ip, entry] of offenders) {
+    if (now - entry.lastAt > OFFENDER_TTL_MS) offenders.delete(ip);
+  }
+
+  if (offenders.size <= OFFENDER_LIMIT) return;
+
+  // Keep the worst. An attacker cannot evict a real offender by flooding from
+  // many addresses, because eviction is by count rather than by recency.
+  const ranked = [...offenders.entries()].sort((a, b) => b[1].count - a[1].count);
+  for (const [ip] of ranked.slice(OFFENDER_LIMIT)) offenders.delete(ip);
+}
+
 function currentHour(): number {
   return Math.floor(Date.now() / 3_600_000);
 }
@@ -111,10 +151,44 @@ export function recordTokenIssued(): void {
  * never anything derived from user input — an unbounded key set would both leak
  * request content into memory and let a caller grow the map at will.
  */
-export function recordJoinRejected(reason: string): void {
+export function recordJoinRejected(reason: string, ip?: string): void {
   totals.joinsRejected += 1;
   totals.rejectionsByReason.set(reason, (totals.rejectionsByReason.get(reason) ?? 0) + 1);
   bucketFor(currentHour()).joinsRejected += 1;
+
+  if (!ip) return;
+
+  const now = Date.now();
+  const entry = offenders.get(ip) ?? { count: 0, firstAt: now, lastAt: now, reasons: new Map() };
+  entry.count += 1;
+  entry.lastAt = now;
+  entry.reasons.set(reason, (entry.reasons.get(reason) ?? 0) + 1);
+  offenders.set(ip, entry);
+
+  pruneOffenders(now);
+}
+
+export interface OffenderSummary {
+  ip: string;
+  count: number;
+  firstAt: number;
+  lastAt: number;
+  reasons: Record<string, number>;
+}
+
+/** Sources at or above the threshold, worst first. */
+export function listOffenders(): OffenderSummary[] {
+  pruneOffenders(Date.now());
+  return [...offenders.entries()]
+    .filter(([, entry]) => entry.count >= OFFENDER_THRESHOLD)
+    .sort((a, b) => b[1].count - a[1].count)
+    .map(([ip, entry]) => ({
+      ip,
+      count: entry.count,
+      firstAt: entry.firstAt,
+      lastAt: entry.lastAt,
+      reasons: Object.fromEntries(entry.reasons),
+    }));
 }
 
 /** Called with a live count so the hourly peak can be tracked. */
@@ -135,9 +209,48 @@ export function recordMeetingDuration(minutes: number): void {
   durations.counts[slot] = (durations.counts[slot] ?? 0) + 1;
 }
 
+/**
+ * Event-loop lag, sampled continuously.
+ *
+ * The single most useful health signal for a Node service: memory can look fine
+ * and CPU can look idle while the loop is blocked and every request is queued
+ * behind something synchronous. Measured by comparing a timer's actual delay
+ * against its requested one.
+ */
+const LAG_INTERVAL_MS = 1000;
+let lagMs = 0;
+let lastTick = Date.now();
+
+const lagTimer = setInterval(() => {
+  const now = Date.now();
+  lagMs = Math.max(0, now - lastTick - LAG_INTERVAL_MS);
+  lastTick = now;
+}, LAG_INTERVAL_MS);
+// Never hold the process open for a metrics timer.
+lagTimer.unref();
+
+let lastCpu = process.cpuUsage();
+let lastCpuAt = Date.now();
+
+/** Percent of one core since the previous call. Stateful by necessity. */
+function cpuPercent(): number {
+  const now = Date.now();
+  const usage = process.cpuUsage(lastCpu);
+  const elapsedMs = now - lastCpuAt;
+
+  lastCpu = process.cpuUsage();
+  lastCpuAt = now;
+
+  if (elapsedMs <= 0) return 0;
+  const usedMs = (usage.user + usage.system) / 1000;
+  return Math.round((usedMs / elapsedMs) * 1000) / 10;
+}
+
 export interface MetricsSnapshot {
   uptimeSeconds: number;
   memoryMb: number;
+  cpuPercent: number;
+  eventLoopLagMs: number;
   totals: {
     roomsCreated: number;
     tokensIssued: number;
@@ -175,6 +288,8 @@ export function snapshot(): MetricsSnapshot {
   return {
     uptimeSeconds: Math.round(process.uptime()),
     memoryMb: Math.round(process.memoryUsage().rss / 1024 / 1024),
+    cpuPercent: cpuPercent(),
+    eventLoopLagMs: lagMs,
     totals: {
       roomsCreated: totals.roomsCreated,
       tokensIssued: totals.tokensIssued,

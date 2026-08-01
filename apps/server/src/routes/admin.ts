@@ -12,8 +12,9 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { timingSafeEqual } from 'node:crypto';
 import { config } from '../config.js';
-import { snapshot } from '../lib/metrics.js';
+import { listOffenders, snapshot } from '../lib/metrics.js';
 import { countActive } from '../lib/livekit.js';
+import type { Blocklist } from '../lib/blocklist.js';
 
 /**
  * Constant-time comparison. A plain `===` on a secret leaks its length and,
@@ -26,7 +27,31 @@ function tokenMatches(supplied: string, expected: string): boolean {
   return timingSafeEqual(a, b);
 }
 
-export const adminRoutes: FastifyPluginAsync = async (app) => {
+interface Options {
+  blocklist: Blocklist;
+}
+
+/** Rejects anything that is not a bare IPv4 or IPv6 literal. */
+const IP_PATTERN = /^[0-9a-fA-F.:]{3,45}$/;
+
+export const adminRoutes: FastifyPluginAsync<Options> = async (app, { blocklist }) => {
+  /**
+   * Shared gate. Returning 404 rather than 401 in every case means an
+   * unauthenticated caller cannot tell these routes exist at all.
+   */
+  const authorise = (request: { headers: Record<string, unknown>; log: { warn: (msg: string) => void } }): boolean => {
+    const expected = config.admin.token;
+    if (!expected) return false;
+
+    const header = typeof request.headers.authorization === 'string' ? request.headers.authorization : '';
+    const supplied = header.startsWith('Bearer ') ? header.slice(7) : '';
+    if (!supplied || !tokenMatches(supplied, expected)) {
+      request.log.warn('rejected an unauthenticated admin request');
+      return false;
+    }
+    return true;
+  };
+
   app.get(
     '/admin/stats',
     {
@@ -51,27 +76,74 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
       },
     },
     async (request, reply) => {
-      const expected = config.admin.token;
-      if (!expected) {
+      if (!authorise(request)) {
         return reply.code(404).send({ error: 'NOT_FOUND', message: 'Not found.' });
       }
 
-      const header = request.headers.authorization ?? '';
-      const supplied = header.startsWith('Bearer ') ? header.slice(7) : '';
-
-      if (!supplied || !tokenMatches(supplied, expected)) {
-        // Logged without the supplied value: recording guesses would write
-        // near-miss secrets into the log file.
-        request.log.warn('rejected an unauthenticated admin request');
-        return reply.code(404).send({ error: 'NOT_FOUND', message: 'Not found.' });
-      }
-
-      const active = await countActive();
+      const [active, blocked] = await Promise.all([countActive(), blocklist.list()]);
 
       return reply.send({
         active,
+        blocked,
+        offenders: listOffenders(),
         ...snapshot(),
       });
+    },
+  );
+
+  /**
+   * Block or unblock a source.
+   *
+   * A TTL rather than a permanent entry: addresses are reassigned, and a list
+   * that only grows is the durable record this design avoids everywhere else.
+   */
+  app.post(
+    '/admin/block',
+    {
+      config: { rateLimit: { max: 30, timeWindow: '1 minute' } },
+      schema: {
+        body: {
+          type: 'object',
+          required: ['ip'],
+          properties: {
+            ip: { type: 'string', maxLength: 45 },
+            hours: { type: 'integer', minimum: 1, maximum: 720 },
+            unblock: { type: 'boolean' },
+          },
+        },
+        response: {
+          200: { type: 'object', additionalProperties: true },
+          400: { type: 'object', additionalProperties: true },
+          404: { type: 'object', additionalProperties: true },
+        },
+      },
+    },
+    async (request, reply) => {
+      if (!authorise(request)) {
+        return reply.code(404).send({ error: 'NOT_FOUND', message: 'Not found.' });
+      }
+
+      const { ip, hours = 24, unblock = false } = request.body as {
+        ip: string;
+        hours?: number;
+        unblock?: boolean;
+      };
+
+      // Validated rather than trusted: this string is stored and compared
+      // against request.ip, and anything else has no business in either.
+      if (!IP_PATTERN.test(ip)) {
+        return reply.code(400).send({ error: 'INVALID_IP', message: 'Not an address.' });
+      }
+
+      if (unblock) {
+        await blocklist.unblock(ip);
+        request.log.warn({ target: ip }, 'admin unblocked a source');
+      } else {
+        await blocklist.block(ip, hours * 3600);
+        request.log.warn({ target: ip, hours }, 'admin blocked a source');
+      }
+
+      return reply.send({ ok: true, blocked: await blocklist.list() });
     },
   );
 };

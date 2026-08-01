@@ -14,6 +14,7 @@ import { knockRoutes } from './routes/knocks.js';
 import { adminRoutes } from './routes/admin.js';
 import type { NonceStore } from './lib/nonceStore.js';
 import type { LobbyStore } from './lib/lobby.js';
+import type { Blocklist } from './lib/blocklist.js';
 
 /** Requests that mutate state and must originate from a known browser origin. */
 const STATE_CHANGING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
@@ -33,7 +34,11 @@ function createLimiterRedis(): Redis {
   });
 }
 
-export async function buildApp(nonces: NonceStore, lobby: LobbyStore): Promise<FastifyInstance> {
+export async function buildApp(
+  nonces: NonceStore,
+  lobby: LobbyStore,
+  blocklist: Blocklist,
+): Promise<FastifyInstance> {
   const app = Fastify({
     logger: {
       level: config.logLevel,
@@ -189,6 +194,27 @@ export async function buildApp(nonces: NonceStore, lobby: LobbyStore): Promise<F
    * introduces cookies, and it blocks trivial cross-origin abuse of room
    * creation from other sites.
    */
+  /**
+   * Manual blocks, applied before anything else does work.
+   *
+   * Ahead of the Origin check and the route handlers on purpose: a blocked
+   * source should cost this server a map lookup and nothing more. The rate
+   * limiter throttles automatically; this is the operator overriding it for a
+   * source that has earned an outright refusal.
+   *
+   * Webhooks are exempt — they arrive from LiveKit over the compose network and
+   * carry their own signature, and blocking that address would take the SFU's
+   * replay detection down with it.
+   */
+  app.addHook('onRequest', async (request, reply) => {
+    if (request.url.startsWith('/api/webhooks/')) return;
+    if (!(await blocklist.isBlocked(request.ip))) return;
+
+    // 403 with no detail. Explaining the block would tell an abuser exactly
+    // what to change.
+    return reply.code(403).send({ error: 'FORBIDDEN', message: 'Request refused.' });
+  });
+
   app.addHook('onRequest', async (request, reply) => {
     if (!STATE_CHANGING.has(request.method)) return;
     // Webhooks come from LiveKit (no Origin) and carry their own signature.
@@ -250,7 +276,7 @@ export async function buildApp(nonces: NonceStore, lobby: LobbyStore): Promise<F
       await api.register(metaRoutes);
       await api.register(roomRoutes, { nonces, lobby });
       await api.register(knockRoutes, { nonces, lobby });
-      await api.register(adminRoutes);
+      await api.register(adminRoutes, { blocklist });
       if (config.livekit.webhooksEnabled) {
         await api.register(webhookRoutes, { nonces });
       }

@@ -1,10 +1,15 @@
 /**
  * Health dashboard.
  *
- * Deliberately shows nothing about any individual meeting, because the server
- * holds nothing about any individual meeting — see apps/server/src/lib/metrics.ts.
- * There are no room identifiers, no IP addresses, and no names here, and the
- * reason is not discretion in the UI: those things are never collected.
+ * Shows nothing about any individual meeting, because the server holds nothing
+ * about any individual meeting — no room identifiers and no participant names
+ * exist to display. That is a property of what is collected, not of what this
+ * page chooses to render.
+ *
+ * Addresses do appear, in one place: sources that have been *refused*. Blocking
+ * is impossible without them, the privacy policy already says addresses are used
+ * for abuse handling, and the distinction that keeps this honest is that it is a
+ * list of who was turned away rather than a list of who joined a meeting.
  *
  * The token is held in sessionStorage rather than localStorage, so closing the
  * tab discards it. An operator credential that survives on a shared machine
@@ -15,10 +20,27 @@ import { PageLayout, Section } from '../components/PageLayout';
 
 const TOKEN_KEY = 'nme.adminToken';
 
+interface Offender {
+  ip: string;
+  count: number;
+  firstAt: number;
+  lastAt: number;
+  reasons: Record<string, number>;
+}
+
+interface Blocked {
+  ip: string;
+  expiresAt: number;
+}
+
 interface Stats {
   active: { rooms: number; participants: number };
+  offenders: Offender[];
+  blocked: Blocked[];
   uptimeSeconds: number;
   memoryMb: number;
+  cpuPercent: number;
+  eventLoopLagMs: number;
   totals: {
     roomsCreated: number;
     tokensIssued: number;
@@ -44,6 +66,7 @@ export default function Health() {
   const [draft, setDraft] = useState('');
   const [stats, setStats] = useState<Stats | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
 
   const load = useCallback(async (bearer: string) => {
     try {
@@ -65,6 +88,27 @@ export default function Health() {
       setError('Could not reach the server.');
     }
   }, []);
+
+  const setBlock = useCallback(
+    async (ip: string, unblock: boolean) => {
+      setBusy(ip);
+      try {
+        const response = await fetch('/api/admin/block', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ip, unblock, hours: 24 }),
+        });
+        if (!response.ok) {
+          setError('That did not take. Check the token and try again.');
+          return;
+        }
+        await load(token);
+      } finally {
+        setBusy(null);
+      }
+    },
+    [token, load],
+  );
 
   useEffect(() => {
     if (!token) return;
@@ -137,8 +181,82 @@ export default function Health() {
               <Stat label="Meetings" value={stats.active.rooms} />
               <Stat label="Participants" value={stats.active.participants} />
               <Stat label="Memory" value={`${stats.memoryMb} MB`} />
+              <Stat label="CPU" value={`${stats.cpuPercent}%`} />
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <Stat label="Event loop lag" value={`${stats.eventLoopLagMs} ms`} />
               <Stat label="Uptime" value={formatDuration(stats.uptimeSeconds)} />
             </div>
+            <p>
+              Event loop lag is the one to watch. Memory and CPU can both look fine while the
+              loop is blocked and every request is queued behind something synchronous —
+              sustained lag above roughly 100&nbsp;ms means this process is the bottleneck.
+            </p>
+          </Section>
+
+          <Section title="Sources being refused">
+            <p>
+              Addresses that have been rejected at least five times in the last six hours.
+              Ordinary users generate almost none — they arrive by link — so a climbing count
+              here is someone probing. Blocking refuses them outright for 24 hours.
+            </p>
+            {stats.offenders.length === 0 ? (
+              <p className="text-muted">None.</p>
+            ) : (
+              <ul className="space-y-2">
+                {stats.offenders.map((offender) => (
+                  <li
+                    key={offender.ip}
+                    className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-border px-3 py-2"
+                  >
+                    <span className="font-mono text-[0.8125rem] text-fg">{offender.ip}</span>
+                    <span className="text-xs text-muted">
+                      {offender.count} refused · {Object.keys(offender.reasons).join(', ')}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={busy === offender.ip}
+                      onClick={() => void setBlock(offender.ip, false)}
+                      className="ml-auto shrink-0 rounded-md bg-danger px-3 py-1 text-xs font-semibold text-white disabled:opacity-50"
+                    >
+                      Block 24h
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Section>
+
+          <Section title="Blocked">
+            {stats.blocked.length === 0 ? (
+              <p className="text-muted">Nothing blocked.</p>
+            ) : (
+              <ul className="space-y-2">
+                {stats.blocked.map((entry) => (
+                  <li
+                    key={entry.ip}
+                    className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-border px-3 py-2"
+                  >
+                    <span className="font-mono text-[0.8125rem] text-fg">{entry.ip}</span>
+                    <span className="text-xs text-muted">
+                      until {new Date(entry.expiresAt).toLocaleString()}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={busy === entry.ip}
+                      onClick={() => void setBlock(entry.ip, true)}
+                      className="ml-auto shrink-0 rounded-md border border-border px-3 py-1 text-xs font-medium disabled:opacity-50"
+                    >
+                      Unblock
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p>
+              Blocks expire on their own. Addresses are reassigned, and a list that only grows
+              would become the durable record this design avoids everywhere else.
+            </p>
           </Section>
 
           <Section title="Last 24 hours">

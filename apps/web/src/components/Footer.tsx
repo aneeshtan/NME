@@ -4,9 +4,12 @@
  * Extracted from the home page when the content pages arrived — three copies of
  * a footer is how the copyright year ends up different on each one.
  *
- * The links are internal now. They used to point at a static site published
- * from the repository, which is private, so nothing is published from it any
- * more. A link that 404s is worse than no link.
+ * Both links are internal. They used to point at a static site published from
+ * the repository; they are routes in the app now.
+ *
+ * No Source link here by request — the repository is linked from the body of
+ * both content pages instead, where it supports the "check this yourself" claim
+ * rather than sitting in a nav row.
  */
 import { routeOnClick } from '../lib/router';
 

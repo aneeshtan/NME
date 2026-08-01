@@ -1,17 +1,16 @@
 /**
  * How it works.
  *
- * Ported from the old static site, with the claims that depended on a public
- * repository removed rather than restated. "Open source", "read the source",
- * and the clone command all became false the moment the repository went
- * private, and a security page carrying a claim its reader cannot check is
- * worse than one that stays quiet about it.
- *
- * The encryption section is unchanged, because none of that depended on who can
- * read the code — the properties come from where the key lives.
+ * The claims about being open source and self-hostable are true only while the
+ * repository is public. They were removed once and restored once already — if
+ * that happens again, this section and the "source code" line in Privacy.tsx are
+ * the two places to change, because a security page that appeals to evidence its
+ * reader cannot obtain is worse than one that stays quiet about it.
  */
 import { PageLayout, Section, Claim } from '../components/PageLayout';
 import { routeOnClick } from '../lib/router';
+
+const REPO = 'https://github.com/aneeshtan/NME';
 
 export default function HowItWorks() {
   return (
@@ -154,6 +153,29 @@ export default function HowItWorks() {
             recorder, let alone a second phone pointed at the screen.
           </Claim>
         </ul>
+      </Section>
+
+      <Section title="Run your own">
+        <p>
+          Open source, and designed to be self-hosted. One Docker Compose stack — a Fastify
+          control plane, a LiveKit SFU, Redis, and Caddy for TLS — runs comfortably on a small
+          VPS. Caddy obtains and renews certificates automatically, so pointing a domain at
+          the box is most of the work.
+        </p>
+        <div className="rounded-xl border border-border bg-surface p-4 font-mono text-[0.8125rem] break-all">
+          git clone {REPO}.git
+          <br />
+          npm run keys
+          <br />
+          docker compose -f infra/docker-compose.yml --env-file .env up -d --build
+        </div>
+        <p>
+          The encryption properties hold regardless of who runs it — that is rather the point.{' '}
+          <a className="text-accent underline" href={REPO} target="_blank" rel="noreferrer">
+            Read the source
+          </a>
+          .
+        </p>
       </Section>
 
       <Section title="Contact">

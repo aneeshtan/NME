@@ -10,6 +10,7 @@ import { buildApp } from './app.js';
 import { config } from './config.js';
 import { createNonceStore } from './lib/nonceStore.js';
 import { createLobbyStore } from './lib/lobby.js';
+import { createBlocklist } from './lib/blocklist.js';
 import { Redis } from 'ioredis';
 
 const nonces = createNonceStore(config.redis.url, config.redis.password);
@@ -27,7 +28,11 @@ const lobbyRedis = config.redis.url
   : null;
 const lobby = createLobbyStore(lobbyRedis);
 
-const app = await buildApp(nonces, lobby);
+// Shared across replicas for the same reason the lobby is: a block applied on
+// one node has to hold on all of them.
+const blocklist = createBlocklist(config.redis.url, config.redis.password);
+
+const app = await buildApp(nonces, lobby, blocklist);
 
 try {
   await app.listen({ host: config.http.host, port: config.http.port });
@@ -55,6 +60,7 @@ async function shutdown(signal: string): Promise<void> {
     await app.close();
     await nonces.close();
     await lobby.close();
+    await blocklist.close();
     process.exit(0);
   } catch (error) {
     app.log.error({ err: error }, 'error during shutdown');

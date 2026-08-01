@@ -192,13 +192,13 @@ export const roomRoutes: FastifyPluginAsync<Options> = async (app: FastifyInstan
       const { displayName, relay } = request.body as { displayName: string; relay?: boolean };
 
       if (!isValidRoomId(roomId)) {
-        recordJoinRejected('bad_room_id');
+        recordJoinRejected('bad_room_id', request.ip);
         return reply.code(404).send({ error: 'NOT_FOUND', message: 'Meeting not found.' });
       }
 
       const name = normalizeDisplayName(displayName);
       if (name === null) {
-        recordJoinRejected('bad_name');
+        recordJoinRejected('bad_name', request.ip);
         return reply.code(400).send({
           error: 'INVALID_NAME',
           message: 'Please enter a name using ordinary characters.',
@@ -210,7 +210,7 @@ export const roomRoutes: FastifyPluginAsync<Options> = async (app: FastifyInstan
       const occupants = await countParticipants(roomId);
       recordParticipantCount(occupants);
       if (occupants >= config.room.maxParticipants) {
-        recordJoinRejected('room_full');
+        recordJoinRejected('room_full', request.ip);
         return reply.code(409).send({
           error: 'ROOM_FULL',
           message: 'This meeting is full.',

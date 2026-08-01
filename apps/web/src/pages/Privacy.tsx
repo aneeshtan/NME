@@ -1,18 +1,18 @@
 /**
  * Privacy policy.
  *
- * Kept as a real route rather than a static site because the app stores require
- * a reachable privacy policy and a reviewer follows the link by hand.
+ * A real route rather than a static site: the app stores require a reachable
+ * privacy policy and a reviewer follows the link by hand.
  *
- * The claims here were previously backed by "you can read the source code".
- * That is no longer offered — the repository is private — so the wording has
- * been changed to say what is true rather than to keep an appeal to evidence
- * nobody can check. What the encryption does has not changed; only what can be
- * verified from outside.
+ * Every claim here is meant to be checkable against the source, which is what
+ * the link in the opening paragraph is for. That sentence is load-bearing — it
+ * is the difference between a policy and a promise — so it has to be removed
+ * the moment the repository stops being public, and restored when it is again.
  */
 import { PageLayout, Section } from '../components/PageLayout';
 
 const SUPPORT_EMAIL = 'support@nmetalk.com';
+const REPO = 'https://github.com/aneeshtan/NME';
 
 export default function Privacy() {
   return (
@@ -23,7 +23,12 @@ export default function Privacy() {
         <>
           NME Talk is an end-to-end encrypted video meeting app. This page describes what
           the service handles, what it deliberately cannot handle, and where the boundaries
-          actually are.
+          actually are. It is written to be checkable: every claim below corresponds to
+          something you can read in the{' '}
+          <a className="text-accent underline" href={REPO} target="_blank" rel="noreferrer">
+            source code
+          </a>
+          .
         </>
       }
     >
@@ -99,11 +104,19 @@ export default function Privacy() {
           last as a distribution.
         </p>
         <p>
-          These are counts and nothing else. There are no per-meeting records, no room
-          identifiers, and no addresses among them — a room identifier is derived from the
-          encryption key, so retaining one alongside a timestamp would let anyone holding an
-          old link establish that a particular meeting took place. The counters live in memory
-          and are lost when the server restarts.
+          These are counts. There are no per-meeting records and no room identifiers among
+          them — a room identifier is derived from the encryption key, so retaining one
+          alongside a timestamp would let anyone holding an old link establish that a
+          particular meeting took place. The counters live in memory and are lost when the
+          server restarts.
+        </p>
+        <p>
+          One exception, stated plainly: an address that is repeatedly <em>refused</em> — a
+          bad meeting code tried again and again, which is what an automated probe looks like
+          — is held so the operator can block it. That is the abuse handling described above,
+          and it is a record of what was turned away rather than of who joined a meeting.
+          Blocks and the list behind them expire on their own; there is no permanent record of
+          either.
         </p>
       </Section>
 
@@ -186,8 +199,30 @@ export default function Privacy() {
         </p>
       </Section>
 
+      <Section title="Self-hosted deployments">
+        <p>
+          NME Talk is open source and designed to be run by anyone. If you joined a meeting on
+          someone else&rsquo;s deployment, the operator of that server is the party handling
+          the metadata described above, and this page describes the software&rsquo;s behaviour
+          rather than any promise on their behalf. The encryption properties hold regardless
+          of who runs it — that is rather the point.
+        </p>
+      </Section>
+
       <Section title="Changes">
-        <p>Material changes to this page will be reflected in the date at the top.</p>
+        <p>
+          Material changes to this page will be reflected in the date at the top. Because the
+          page lives in the project&rsquo;s public repository, every revision is visible in its{' '}
+          <a
+            className="text-accent underline"
+            href={`${REPO}/commits/main`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            commit history
+          </a>
+          .
+        </p>
       </Section>
 
       <Section title="Contact">
