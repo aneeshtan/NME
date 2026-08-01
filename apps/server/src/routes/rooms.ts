@@ -9,6 +9,12 @@
  */
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import { config } from '../config.js';
+import {
+  recordJoinRejected,
+  recordParticipantCount,
+  recordRoomCreated,
+  recordTokenIssued,
+} from '../lib/metrics.js';
 import { createRoomId, isValidRoomId } from '../lib/ids.js';
 import { normalizeDisplayName, DISPLAY_NAME_MAX_LENGTH } from '../lib/displayName.js';
 import { countParticipants, ensureRoom, issueJoinToken } from '../lib/livekit.js';
@@ -118,6 +124,7 @@ export const roomRoutes: FastifyPluginAsync<Options> = async (app: FastifyInstan
       const wantsLobby = body.lobby === true;
       if (!wantsLobby) {
         request.log.info({ roomId, lobby: false }, 'room created');
+        recordRoomCreated();
         return reply.code(201).send({ roomId });
       }
 
@@ -127,6 +134,7 @@ export const roomRoutes: FastifyPluginAsync<Options> = async (app: FastifyInstan
       await lobby.enable(roomId, hashHostKey(hostKey), LOBBY_TTL_SECONDS);
 
       request.log.info({ roomId, lobby: true }, 'room created');
+      recordRoomCreated();
       return reply.code(201).send({ roomId, hostKey });
     },
   );
@@ -184,11 +192,13 @@ export const roomRoutes: FastifyPluginAsync<Options> = async (app: FastifyInstan
       const { displayName, relay } = request.body as { displayName: string; relay?: boolean };
 
       if (!isValidRoomId(roomId)) {
+        recordJoinRejected('bad_room_id');
         return reply.code(404).send({ error: 'NOT_FOUND', message: 'Meeting not found.' });
       }
 
       const name = normalizeDisplayName(displayName);
       if (name === null) {
+        recordJoinRejected('bad_name');
         return reply.code(400).send({
           error: 'INVALID_NAME',
           message: 'Please enter a name using ordinary characters.',
@@ -198,7 +208,9 @@ export const roomRoutes: FastifyPluginAsync<Options> = async (app: FastifyInstan
       // Capacity is enforced here as well as in LiveKit so the client gets a
       // clean, actionable error instead of an opaque signaling disconnect.
       const occupants = await countParticipants(roomId);
+      recordParticipantCount(occupants);
       if (occupants >= config.room.maxParticipants) {
+        recordJoinRejected('room_full');
         return reply.code(409).send({
           error: 'ROOM_FULL',
           message: 'This meeting is full.',
@@ -234,6 +246,7 @@ export const roomRoutes: FastifyPluginAsync<Options> = async (app: FastifyInstan
         }
       }
 
+      recordTokenIssued();
       const issued = await issueJoinToken(roomId, name);
       await nonces.register(issued.identity, config.room.tokenTtlSeconds);
 

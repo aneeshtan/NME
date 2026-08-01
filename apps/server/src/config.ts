@@ -97,6 +97,16 @@ export const config = Object.freeze({
     tokenTtlSeconds: integer('TOKEN_TTL', 120, 30, 900),
   }),
 
+  /**
+   * Health dashboard. Empty by default, which leaves the endpoint returning 404
+   * — an operational surface should be opt-in, and a default-on stats endpoint
+   * on a privacy product is exactly the kind of thing nobody notices until it
+   * is indexed.
+   */
+  admin: Object.freeze({
+    token: optional('ADMIN_TOKEN', ''),
+  }),
+
   media: Object.freeze({
     videoCodec: (() => {
       const codec = optional('VIDEO_CODEC', 'vp8').toLowerCase();

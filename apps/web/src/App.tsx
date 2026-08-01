@@ -15,6 +15,7 @@ const Meeting = lazy(() => import('./pages/Meeting'));
  */
 const Privacy = lazy(() => import('./pages/Privacy'));
 const HowItWorks = lazy(() => import('./pages/HowItWorks'));
+const Health = lazy(() => import('./pages/Health'));
 
 export function App() {
   const route = useRoute();
@@ -32,11 +33,13 @@ export function App() {
     );
   }
 
-  if (route.name === 'privacy' || route.name === 'how') {
+  if (route.name === 'privacy' || route.name === 'how' || route.name === 'health') {
     return (
       <ErrorBoundary>
         <Suspense fallback={<RouteFallback />}>
-          {route.name === 'privacy' ? <Privacy /> : <HowItWorks />}
+          {route.name === 'privacy' ? <Privacy /> : null}
+          {route.name === 'how' ? <HowItWorks /> : null}
+          {route.name === 'health' ? <Health /> : null}
         </Suspense>
       </ErrorBoundary>
     );

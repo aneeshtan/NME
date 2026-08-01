@@ -91,6 +91,22 @@ export default function Privacy() {
         </dl>
       </Section>
 
+      <Section title="Operational counts">
+        <p>
+          The server keeps aggregate counters so its operator can see whether it is
+          overloaded or under attack: how many meetings were created in an hour, how many
+          people joined, how many joins were refused and why, and how long meetings tend to
+          last as a distribution.
+        </p>
+        <p>
+          These are counts and nothing else. There are no per-meeting records, no room
+          identifiers, and no addresses among them — a room identifier is derived from the
+          encryption key, so retaining one alongside a timestamp would let anyone holding an
+          old link establish that a particular meeting took place. The counters live in memory
+          and are lost when the server restarts.
+        </p>
+      </Section>
+
       <Section title="Stored on your device">
         <p>A small amount of information stays on your own device and is never transmitted:</p>
         <ul className="list-disc space-y-2 pl-5">

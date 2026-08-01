@@ -9,6 +9,8 @@ import { randomBytes } from 'node:crypto';
 // docker-compose interpolation, and shell exports.
 const apiSecret = randomBytes(32).toString('base64url');
 const redisPassword = randomBytes(24).toString('base64url');
+// Optional: only needed if the health dashboard is wanted.
+const adminToken = randomBytes(32).toString('base64url');
 
 process.stdout.write(
   [
@@ -16,6 +18,9 @@ process.stdout.write(
     '# LIVEKIT_API_KEY stays as `nme` — it is a public identifier, not a secret.',
     `LIVEKIT_API_SECRET=${apiSecret}`,
     `REDIS_PASSWORD=${redisPassword}`,
+    '',
+    '# Optional — unlocks /health. Leave unset and the endpoint returns 404.',
+    `ADMIN_TOKEN=${adminToken}`,
     '',
   ].join('\n'),
 );

@@ -1,9 +1,9 @@
 /**
  * Minimal router.
  *
- * Four routes: home, a meeting, and two content pages. A routing library would
- * add ~15 KB gzipped and a context provider for something expressible in eighty
- * lines — and on a product whose entire pitch is "fast", that trade is not worth
+ * Five routes: home, a meeting, two content pages, and the operator dashboard.
+ * A routing library would add ~15 KB gzipped and a context provider for something
+ * expressible in eighty lines — and on a product whose entire pitch is "fast", that trade is not worth
  * making.
  */
 import { useSyncExternalStore } from 'react';
@@ -14,6 +14,8 @@ export type Route =
   /** Content pages, served by the SPA rather than by a separate static site. */
   | { name: 'privacy' }
   | { name: 'how' }
+  /** Operator dashboard. Unlinked; the server gates it on a token. */
+  | { name: 'health' }
   /** Legacy link: the room id is in the path. */
   | { name: 'meeting'; roomId: string }
   /** Short link: the room id is derived from the key in the fragment. */
@@ -110,6 +112,7 @@ function parseRoute(pathname: string, hash: string): Route {
    */
   if (pathname === '/privacy' || pathname === '/privacy/') return { name: 'privacy' };
   if (pathname === '/how-it-works' || pathname === '/how-it-works/') return { name: 'how' };
+  if (pathname === '/health' || pathname === '/health/') return { name: 'health' };
 
   // Short link: "/" carrying a 43-character key. Anything else is the home page.
   if (pathname === '/' && /^#[A-Za-z0-9_-]{43}$/.test(hash)) {

@@ -78,6 +78,8 @@ services:
       LIVEKIT_HOST: http://livekit:7880
       PUBLIC_LIVEKIT_URL: wss://${LIVEKIT_DOMAIN}
       LIVEKIT_WEBHOOK_ENABLED: 'true'
+      # Empty unless set: the health endpoint is 404 while it is.
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-}
       MAX_PARTICIPANTS: ${MAX_PARTICIPANTS:-25}
       ROOM_EMPTY_TIMEOUT: ${ROOM_EMPTY_TIMEOUT:-30}
       ROOM_DEPARTURE_TIMEOUT: ${ROOM_DEPARTURE_TIMEOUT:-20}

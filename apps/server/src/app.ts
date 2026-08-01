@@ -11,6 +11,7 @@ import { metaRoutes } from './routes/meta.js';
 import { roomRoutes } from './routes/rooms.js';
 import { webhookRoutes } from './routes/webhooks.js';
 import { knockRoutes } from './routes/knocks.js';
+import { adminRoutes } from './routes/admin.js';
 import type { NonceStore } from './lib/nonceStore.js';
 import type { LobbyStore } from './lib/lobby.js';
 
@@ -249,6 +250,7 @@ export async function buildApp(nonces: NonceStore, lobby: LobbyStore): Promise<F
       await api.register(metaRoutes);
       await api.register(roomRoutes, { nonces, lobby });
       await api.register(knockRoutes, { nonces, lobby });
+      await api.register(adminRoutes);
       if (config.livekit.webhooksEnabled) {
         await api.register(webhookRoutes, { nonces });
       }

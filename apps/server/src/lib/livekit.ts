@@ -95,6 +95,28 @@ export async function countParticipants(roomId: string): Promise<number> {
   }
 }
 
+/**
+ * Live totals for the health dashboard.
+ *
+ * Asked of LiveKit at request time rather than tracked as server state: the SFU
+ * already knows, and mirroring it here would mean a second source of truth that
+ * drifts whenever a room is reaped without the control plane noticing.
+ *
+ * Deliberately returns counts only. Room names are hashes of encryption keys —
+ * see lib/metrics.ts on why they must not travel any further than this file.
+ */
+export async function countActive(): Promise<{ rooms: number; participants: number }> {
+  try {
+    const active = await rooms.listRooms();
+    return {
+      rooms: active.length,
+      participants: active.reduce((sum, room) => sum + room.numParticipants, 0),
+    };
+  } catch {
+    return { rooms: 0, participants: 0 };
+  }
+}
+
 /** Disconnects a participant. Used to evict a detected token replay. */
 export async function evictParticipant(roomId: string, identity: string): Promise<void> {
   await rooms.removeParticipant(roomId, identity);

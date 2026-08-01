@@ -11,6 +11,7 @@ import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import { WebhookReceiver } from 'livekit-server-sdk';
 import { config } from '../config.js';
 import { evictParticipant } from '../lib/livekit.js';
+import { recordMeetingDuration } from '../lib/metrics.js';
 import type { NonceStore } from '../lib/nonceStore.js';
 
 interface Options {
@@ -64,6 +65,19 @@ export const webhookRoutes: FastifyPluginAsync<Options> = async (
           await evictParticipant(roomId, identity).catch((error: unknown) => {
             request.log.error({ err: error, roomId, identity }, 'eviction failed');
           });
+        }
+      }
+
+      /**
+       * A finished meeting contributes its length to a histogram, and nothing
+       * else. No identifier and no timestamp are kept — see lib/metrics.ts on
+       * why a room id must never be retained alongside a time.
+       */
+      if (event.event === 'room_finished' && event.room) {
+        const created = Number(event.room.creationTime ?? 0);
+        if (created > 0) {
+          // LiveKit reports creationTime in seconds.
+          recordMeetingDuration((Date.now() / 1000 - created) / 60);
         }
       }
 
