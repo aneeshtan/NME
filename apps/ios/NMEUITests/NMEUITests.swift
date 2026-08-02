@@ -33,7 +33,28 @@ final class NMEUITests: XCTestCase {
 
         app.buttons["cameraToggle"].tap()
         app.buttons["joinMeeting"].tap()
-        XCTAssertTrue(app.staticTexts["meetingPlaceholder"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["leaveMeeting"].waitForExistence(timeout: 5))
+        app.buttons["leaveMeeting"].tap()
+        XCTAssertTrue(app.staticTexts["productName"].waitForExistence(timeout: 5))
+    }
+
+    @MainActor
+    func testDemoMeetingExposesControlsTilesAndEphemeralChat() {
+        let app = XCUIApplication()
+        app.launchArguments += [
+            "--ui-testing",
+            "--ui-testing-demo-meeting=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+        ]
+        app.launch()
+
+        XCTAssertTrue(app.buttons["microphoneToggle"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["meetingCameraToggle"].exists)
+        XCTAssertTrue(app.buttons["openChat"].exists)
+
+        app.buttons["openChat"].tap()
+        XCTAssertTrue(app.textFields["chatComposer"].waitForExistence(timeout: 5))
+        app.buttons["closeChat"].tap()
+
         app.buttons["leaveMeeting"].tap()
         XCTAssertTrue(app.staticTexts["productName"].waitForExistence(timeout: 5))
     }

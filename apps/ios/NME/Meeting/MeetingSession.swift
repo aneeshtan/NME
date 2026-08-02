@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import LiveKit
 
 @MainActor
 final class MeetingSession: ObservableObject, MeetingSessionProtocol {
@@ -17,6 +18,11 @@ final class MeetingSession: ObservableObject, MeetingSessionProtocol {
 
     private var generation = UUID()
     private var currentRelayMode = false
+    private var dataHandler: (@MainActor @Sendable (Data, String?) -> Void)?
+
+    var changes: AnyPublisher<Void, Never> {
+        objectWillChange.eraseToAnyPublisher()
+    }
 
     init(
         API: any MeetingAPI,
@@ -147,6 +153,39 @@ final class MeetingSession: ObservableObject, MeetingSessionProtocol {
         state = .ended
     }
 
+    func setMicrophone(enabled: Bool) async throws {
+        try await engine.setMicrophone(enabled: enabled)
+        microphoneEnabled = enabled
+    }
+
+    func setCamera(enabled: Bool) async throws {
+        try await engine.setCamera(enabled: enabled)
+        cameraEnabled = enabled
+    }
+
+    func flipCamera() async throws {
+        try await engine.flipCamera()
+    }
+
+    func publishData(_ data: Data) async throws {
+        try await engine.publishData(data)
+    }
+
+    func blockParticipant(identity: String) async {
+        await engine.blockParticipant(identity: identity)
+        participants.removeAll { $0.identity == identity && !$0.isLocal }
+    }
+
+    func videoTrack(for identifier: String) -> VideoTrack? {
+        engine.videoTrack(for: identifier)
+    }
+
+    func setDataHandler(
+        _ handler: (@MainActor @Sendable (Data, String?) -> Void)?
+    ) {
+        dataHandler = handler
+    }
+
     private func resolveCredentials(
         _ result: JoinResult,
         roomID: String,
@@ -201,8 +240,8 @@ final class MeetingSession: ObservableObject, MeetingSessionProtocol {
         case let .disconnected(error):
             guard state != .ended else { return }
             state = .failed(error.map(Self.failure(for:)) ?? .connection)
-        case .data:
-            break
+        case let .data(data, senderIdentity):
+            dataHandler?(data, senderIdentity)
         }
     }
 

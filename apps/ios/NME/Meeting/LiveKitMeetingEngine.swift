@@ -5,6 +5,7 @@ final class LiveKitMeetingEngine: NSObject, MeetingEngine, RoomDelegate, @unchec
     @MainActor private var eventHandler: (@MainActor @Sendable (MeetingEngineEvent) -> Void)?
     @MainActor private var activeRoom: Room?
     @MainActor private var videoTracks: [String: VideoTrack] = [:]
+    @MainActor private var blockedIdentities: Set<String> = []
     @MainActor private var localFallbackIdentity = "local"
     @MainActor private let audioLifecycle: AudioLifecycle
 
@@ -35,6 +36,7 @@ final class LiveKitMeetingEngine: NSObject, MeetingEngine, RoomDelegate, @unchec
             roomOptions: roomOptions
         )
         localFallbackIdentity = request.credentials.identity
+        blockedIdentities.removeAll()
         activeRoom = room
         audioLifecycle.start { [weak self] event in
             guard event == .mediaServicesReset else { return }
@@ -85,6 +87,83 @@ final class LiveKitMeetingEngine: NSObject, MeetingEngine, RoomDelegate, @unchec
     }
 
     @MainActor
+    func setMicrophone(enabled: Bool) async throws {
+        guard let room = activeRoom else { throw MeetingEngineError.connection }
+        do {
+            try await room.localParticipant.setMicrophone(enabled: enabled)
+        } catch {
+            throw LiveKitErrorClassifier.mediaError(error, operation: .microphone)
+        }
+        eventHandler?(.localMedia(
+            microphoneEnabled: enabled,
+            cameraEnabled: localCameraEnabled(in: room)
+        ))
+        rebuildParticipants()
+    }
+
+    @MainActor
+    func setCamera(enabled: Bool) async throws {
+        guard let room = activeRoom else { throw MeetingEngineError.connection }
+        do {
+            try await room.localParticipant.setCamera(enabled: enabled)
+        } catch {
+            throw LiveKitErrorClassifier.mediaError(error, operation: .camera)
+        }
+        eventHandler?(.localMedia(
+            microphoneEnabled: localMicrophoneEnabled(in: room),
+            cameraEnabled: enabled
+        ))
+        rebuildParticipants()
+    }
+
+    @MainActor
+    func flipCamera() async throws {
+        guard let room = activeRoom,
+              let publication = room.localParticipant.trackPublications.values
+              .first(where: { $0.source == .camera }),
+              let track = publication.track as? LocalVideoTrack,
+              let capturer = track.capturer as? CameraCapturer
+        else {
+            throw MeetingEngineError.connection
+        }
+
+        do {
+            try await capturer.switchCameraPosition()
+        } catch {
+            throw LiveKitErrorClassifier.mediaError(error, operation: .camera)
+        }
+    }
+
+    @MainActor
+    func publishData(_ data: Data) async throws {
+        guard let room = activeRoom else { throw MeetingEngineError.connection }
+        do {
+            try await room.localParticipant.publish(
+                data: data,
+                options: DataPublishOptions(topic: "nme-chat", reliable: true)
+            )
+        } catch {
+            throw MeetingEngineError.connection
+        }
+    }
+
+    @MainActor
+    func blockParticipant(identity: String) async {
+        guard let room = activeRoom,
+              let participant = room.remoteParticipants.values.first(where: {
+                  $0.identity?.stringValue == identity
+              })
+        else { return }
+
+        blockedIdentities.insert(identity)
+        for publication in participant.trackPublications.values {
+            guard let remotePublication = publication as? RemoteTrackPublication else { continue }
+            try? await remotePublication.set(subscribed: false)
+        }
+        rebuildParticipants()
+    }
+
+    @MainActor
     func videoTrack(for identifier: String) -> VideoTrack? {
         videoTracks[identifier]
     }
@@ -94,6 +173,7 @@ final class LiveKitMeetingEngine: NSObject, MeetingEngine, RoomDelegate, @unchec
         guard let room = activeRoom else {
             audioLifecycle.stop()
             videoTracks.removeAll()
+            blockedIdentities.removeAll()
             return
         }
         await tearDown(room)
@@ -107,6 +187,7 @@ final class LiveKitMeetingEngine: NSObject, MeetingEngine, RoomDelegate, @unchec
         room.remove(delegate: self)
         audioLifecycle.stop()
         videoTracks.removeAll()
+        blockedIdentities.removeAll()
         await room.disconnect()
     }
 
@@ -116,8 +197,11 @@ final class LiveKitMeetingEngine: NSObject, MeetingEngine, RoomDelegate, @unchec
         videoTracks.removeAll(keepingCapacity: true)
 
         var snapshots = [snapshot(for: room.localParticipant, isLocal: true)]
-        snapshots.append(contentsOf: room.remoteParticipants.values.map {
-            snapshot(for: $0, isLocal: false)
+        snapshots.append(contentsOf: room.remoteParticipants.values.compactMap {
+            guard let identity = $0.identity?.stringValue,
+                  !blockedIdentities.contains(identity)
+            else { return nil }
+            return snapshot(for: $0, isLocal: false)
         })
         snapshots.sort {
             if $0.isLocal != $1.isLocal { return $0.isLocal }
@@ -161,6 +245,20 @@ final class LiveKitMeetingEngine: NSObject, MeetingEngine, RoomDelegate, @unchec
             isCameraEnabled: cameraIsEnabled,
             videoTrackID: trackID
         )
+    }
+
+    @MainActor
+    private func localMicrophoneEnabled(in room: Room) -> Bool {
+        room.localParticipant.trackPublications.values.contains {
+            $0.source == .microphone && $0.track != nil && !$0.isMuted
+        }
+    }
+
+    @MainActor
+    private func localCameraEnabled(in room: Room) -> Bool {
+        room.localParticipant.trackPublications.values.contains {
+            $0.source == .camera && $0.track != nil && !$0.isMuted
+        }
     }
 
     @MainActor

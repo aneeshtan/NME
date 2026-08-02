@@ -1,4 +1,5 @@
 import Foundation
+import LiveKit
 import XCTest
 @testable import NME
 
@@ -348,6 +349,13 @@ private final class FakeMeetingEngine: MeetingEngine {
     func disconnect() async {
         disconnectCount += 1
     }
+
+    func setMicrophone(enabled _: Bool) async throws {}
+    func setCamera(enabled _: Bool) async throws {}
+    func flipCamera() async throws {}
+    func publishData(_: Data) async throws {}
+    func blockParticipant(identity _: String) async {}
+    func videoTrack(for _: String) -> VideoTrack? { nil }
 
     func emit(_ event: MeetingEngineEvent) {
         handler?(event)

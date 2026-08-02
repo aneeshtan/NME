@@ -1,4 +1,6 @@
+import Combine
 import Foundation
+import LiveKit
 
 protocol MeetingAPI: Sendable {
     func configuration() async throws -> ClientConfiguration
@@ -32,6 +34,12 @@ protocol MeetingEngine: AnyObject {
     )
     func connect(_ request: MeetingConnectionRequest) async throws
     func disconnect() async
+    func setMicrophone(enabled: Bool) async throws
+    func setCamera(enabled: Bool) async throws
+    func flipCamera() async throws
+    func publishData(_ data: Data) async throws
+    func blockParticipant(identity: String) async
+    func videoTrack(for identifier: String) -> VideoTrack?
 }
 
 @MainActor
@@ -41,9 +49,19 @@ protocol MeetingSessionProtocol: AnyObject {
     var unreadCount: Int { get }
     var microphoneEnabled: Bool { get }
     var cameraEnabled: Bool { get }
+    var changes: AnyPublisher<Void, Never> { get }
 
     func join(identity: RoomIdentity, displayName: String, cameraEnabled: Bool) async
     func leave() async
+    func setMicrophone(enabled: Bool) async throws
+    func setCamera(enabled: Bool) async throws
+    func flipCamera() async throws
+    func publishData(_ data: Data) async throws
+    func blockParticipant(identity: String) async
+    func videoTrack(for identifier: String) -> VideoTrack?
+    func setDataHandler(
+        _ handler: (@MainActor @Sendable (Data, String?) -> Void)?
+    )
 }
 
 struct MeetingClock: Sendable {

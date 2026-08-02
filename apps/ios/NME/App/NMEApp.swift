@@ -47,10 +47,11 @@ private struct AppRootView: View {
                 )
                 .transition(.move(edge: .trailing).combined(with: .opacity))
             case let .meeting(identity, displayName, cameraEnabled):
-                MeetingPlaceholderView(
+                MeetingFlow(
                     identity: identity,
                     displayName: displayName,
                     cameraEnabled: cameraEnabled,
+                    environment: environment,
                     onLeave: coordinator.leaveMeeting
                 )
                 .transition(.opacity)
@@ -102,33 +103,27 @@ private struct PreJoinFlow: View {
     }
 }
 
-private struct MeetingPlaceholderView: View {
-    let identity: RoomIdentity
-    let displayName: String
-    let cameraEnabled: Bool
+private struct MeetingFlow: View {
+    @StateObject private var viewModel: MeetingViewModel
     let onLeave: () -> Void
 
+    @MainActor
+    init(
+        identity: RoomIdentity,
+        displayName: String,
+        cameraEnabled: Bool,
+        environment: AppEnvironment,
+        onLeave: @escaping () -> Void
+    ) {
+        _viewModel = StateObject(wrappedValue: environment.makeMeetingViewModel(
+            identity: identity,
+            displayName: displayName,
+            cameraEnabled: cameraEnabled
+        ))
+        self.onLeave = onLeave
+    }
+
     var body: some View {
-        ZStack {
-            AppTheme.background.ignoresSafeArea()
-            VStack(spacing: 18) {
-                ProgressView().tint(AppTheme.accent).scaleEffect(1.2)
-                Text("Preparing encrypted meeting")
-                    .font(.system(size: 22, weight: .bold, design: .rounded))
-                    .accessibilityIdentifier("meetingPlaceholder")
-                Text("Joining as \(displayName) · \(cameraEnabled ? "camera on" : "audio only")")
-                    .font(.system(size: 14, design: .rounded))
-                    .foregroundStyle(AppTheme.muted)
-                Text(identity.safetyNumber)
-                    .font(.system(size: 13, design: .monospaced))
-                    .foregroundStyle(AppTheme.muted)
-                Button("Leave", action: onLeave)
-                    .buttonStyle(SecondaryActionButtonStyle())
-                    .frame(maxWidth: 280)
-                    .accessibilityIdentifier("leaveMeeting")
-            }
-            .padding(24)
-        }
-        .foregroundStyle(AppTheme.foreground)
+        MeetingView(viewModel: viewModel, onLeave: onLeave)
     }
 }
