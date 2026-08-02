@@ -1,10 +1,24 @@
 import { describe, expect, test } from 'vitest';
+import fixture from '../test-fixtures/native-compatibility.json';
 import { deriveChatKey, openMessage, sealMessage } from './messaging';
 import { generateRoomKey } from './e2ee';
 
 const roomKey = generateRoomKey();
 
 describe('chat encryption', () => {
+  test('opens the deterministic native compatibility fixture', async () => {
+    const envelope = Uint8Array.from(
+      fixture.chat.envelopeHex.match(/../g) ?? [],
+      (byte) => Number.parseInt(byte, 16),
+    );
+
+    expect(await openMessage(await deriveChatKey(fixture.encodedRoomKey), envelope)).toEqual({
+      type: 'chat',
+      at: fixture.chat.at,
+      text: fixture.chat.text,
+    });
+  });
+
   test('a message round-trips', async () => {
     const key = await deriveChatKey(roomKey);
     const sealed = await sealMessage(key, { type: 'chat', at: 1, text: 'hello' });
