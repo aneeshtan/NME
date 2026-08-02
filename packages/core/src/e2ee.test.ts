@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+import fixture from '../test-fixtures/native-compatibility.json';
 import {
   fromBase64Url,
   toBase64Url,
@@ -9,6 +10,7 @@ import {
   generateRoomKey,
   readRoomKeyFromAnyUrl,
   readRoomKeyFromUrl,
+  safetyNumber,
 } from './e2ee';
 
 describe('generateRoomKey', () => {
@@ -97,6 +99,11 @@ describe('buildMeetingUrl', () => {
 });
 
 describe('deriveRoomId', () => {
+  test('matches the native compatibility fixture', async () => {
+    expect(await deriveRoomId(fixture.encodedRoomKey)).toBe(fixture.roomId);
+    expect(await safetyNumber(fixture.encodedRoomKey)).toBe(fixture.safetyNumber);
+  });
+
   test('is deterministic — every participant computes the same id', async () => {
     const key = generateRoomKey();
     expect(await deriveRoomId(key)).toBe(await deriveRoomId(key));

@@ -1,0 +1,12 @@
+{
+  "encodedRoomKey": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+  "roomId": "gqwm-kmxk-yvzm",
+  "safetyNumber": "91597 13284 68593 01224",
+  "chat": {
+    "nonceHex": "000102030405060708090a0b",
+    "at": 1700000000000,
+    "text": "hello",
+    "envelopeHex": "000102030405060708090a0b3c68c4e1fe37703e96d95c5bc3330125384f69edc829e54b401771dd06cf3b81f8afac7fe3e77b7cb95e30709edbb198096a7a776512e385b8a2997a7e5e0d4aa8"
+  }
+}
+
