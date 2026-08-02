@@ -71,6 +71,8 @@ final class MeetingSession: ObservableObject, MeetingSessionProtocol {
 
             state = .connectingDirect
             configureEvents(generation: attempt)
+            microphoneEnabled = true
+            self.cameraEnabled = cameraEnabled
 
             do {
                 try await engine.connect(MeetingConnectionRequest(
@@ -108,6 +110,8 @@ final class MeetingSession: ObservableObject, MeetingSessionProtocol {
 
                 state = .connectingRelay
                 configureEvents(generation: attempt)
+                microphoneEnabled = true
+                self.cameraEnabled = cameraEnabled
                 try await engine.connect(MeetingConnectionRequest(
                     roomIdentity: identity,
                     configuration: configuration,
@@ -121,8 +125,6 @@ final class MeetingSession: ObservableObject, MeetingSessionProtocol {
             }
 
             guard isCurrent(attempt) else { return }
-            microphoneEnabled = true
-            self.cameraEnabled = cameraEnabled
             state = .connected(relayed: currentRelayMode)
         } catch is CancellationError {
             guard isCurrent(attempt) else { return }
@@ -189,6 +191,9 @@ final class MeetingSession: ObservableObject, MeetingSessionProtocol {
         switch event {
         case let .participants(participants):
             self.participants = participants
+        case let .localMedia(microphoneEnabled, cameraEnabled):
+            self.microphoneEnabled = microphoneEnabled
+            self.cameraEnabled = cameraEnabled
         case .reconnecting:
             state = .reconnecting(relayed: currentRelayMode)
         case .reconnected:

@@ -13,8 +13,7 @@ import {
   type RoomConnectOptions,
   type RoomOptions,
 } from 'livekit-client';
-import { decodeRoomKey } from '@nme/core';
-import type { ClientConfig, IceServerConfig } from '@nme/core';
+import { mediaPassphrase, type ClientConfig, type IceServerConfig } from '@nme/core';
 
 export interface ConnectParams {
   url: string;
@@ -63,9 +62,10 @@ export async function connectToRoom(params: ConnectParams): Promise<Room> {
 
   try {
     // The key must be installed before connecting; otherwise the first inbound
-    // frames arrive with no decryptor and are dropped. Raw bytes are passed
-    // through rather than a string, so no text encoding can corrupt the key.
-    await keyProvider.setKey(decodeRoomKey(params.roomKey));
+    // frames arrive with no decryptor and are dropped. The invitation's
+    // base64url string is the cross-SDK passphrase contract: every LiveKit SDK
+    // applies PBKDF2 to these exact UTF-8 bytes.
+    await keyProvider.setKey(mediaPassphrase(params.roomKey));
     await room.setE2EEEnabled(true);
 
     await room.connect(params.url, params.token, buildConnectOptions(params));

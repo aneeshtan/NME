@@ -464,10 +464,11 @@ default.
 
 ## Mobile apps
 
-Native iOS and Android clients live in `apps/mobile`. They are not a wrapper
-around the website: there is no WebView anywhere in them. Media runs through
-libwebrtc via LiveKit's React Native SDK, with the same camera and microphone
-pipelines a fully native app would use.
+The native Swift iOS client lives in `apps/ios`; the React Native Android client
+lives in `apps/mobile`. Neither is a wrapper around the website: there is no
+WebView in either app. Media runs through libwebrtc via the platform LiveKit
+SDK, using the same native camera and microphone pipelines as other calling
+apps.
 
 ### How encryption works off the web
 
@@ -482,22 +483,18 @@ bytes, and the two are **not** equivalent:
 
 | Input | Derivation |
 |---|---|
-| Raw bytes | HKDF-SHA256(key, salt `LKFrameEncryptionKey`, info `0^128`) |
-| String | PBKDF2-SHA256(utf8, same salt, 100k iterations) — web only |
+| Raw bytes | Selects the browser's HKDF path; not supported consistently by every SDK |
+| String | PBKDF2-SHA256(UTF-8 passphrase, salt `LKFrameEncryptionKey`, 100k iterations) |
 
-The native frame cryptor implements only the HKDF path; hand it a string and it
-hashes the characters rather than running PBKDF2 over them. So both clients
-pass **raw bytes** (`decodeRoomKey`), which puts them on the one shared
-derivation. Passing a string on either side would produce a call that connects,
-reports itself healthy, and shows nothing but frozen tiles — an authentication
-failure is indistinguishable from a foreign key, so nothing is logged anywhere.
+All clients therefore pass the invitation's canonical 43-character base64url
+key as a **string**. The browser, Swift, and React Native key providers apply
+the same PBKDF2 derivation to those UTF-8 bytes. Decoding it first would select
+the browser's HKDF path and can produce a call that connects successfully but
+cannot decrypt media from the native clients.
 
-> **Unverified.** This follows from reading both implementations, and it is why
-> the code is written the way it is. It has not been confirmed by a real call
-> between a phone and a browser, because that needs two devices and a
-> deployment. **Do that before publishing anything.** If tiles stay frozen
-> across platforms while same-platform calls work, this is the first place to
-> look.
+> **Device acceptance required.** The contract is pinned by automated tests and
+> follows the installed SDK implementations. A browser-to-iPhone media call
+> must still be completed against the deployment before App Store release.
 
 ### Links open the app
 

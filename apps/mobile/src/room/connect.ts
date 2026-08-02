@@ -15,7 +15,7 @@
  */
 import { RNE2EEManager, RNKeyProvider } from '@livekit/react-native';
 import { Room, RoomEvent, VideoPresets, type RoomConnectOptions, type RoomOptions } from 'livekit-client';
-import { decodeRoomKey, type ClientConfig, type IceServerConfig } from '@nme/core';
+import { mediaPassphrase, type ClientConfig, type IceServerConfig } from '@nme/core';
 
 export interface ConnectParams {
   url: string;
@@ -58,13 +58,11 @@ export async function connectToRoom(params: ConnectParams): Promise<Room> {
 
   try {
     /**
-     * Raw bytes, never the base64url string — see `decodeRoomKey`. This single
-     * line is what lets a phone and a browser hear each other: both hand the
-     * same 32 bytes to HKDF, and so arrive at the same content-encryption key.
-     * Passing the string instead would put the two platforms on different
-     * derivations, and the failure is silent on both.
+     * Keep the base64url invitation string intact. LiveKit's native and web
+     * providers both treat this as a UTF-8 passphrase and apply PBKDF2. Passing
+     * decoded bytes selects a different derivation in the browser.
      */
-    await keyProvider.setSharedKey(new Uint8Array(decodeRoomKey(params.roomKey)));
+    await keyProvider.setSharedKey(mediaPassphrase(params.roomKey));
     await room.setE2EEEnabled(true);
 
     await room.connect(params.url, params.token, buildConnectOptions(params));

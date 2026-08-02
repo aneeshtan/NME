@@ -75,30 +75,27 @@ export function buildMeetingUrl(origin: string, roomId: string, key: string): st
   return `${origin}/r/${roomId}#${FRAGMENT_PARAM}=${key}`;
 }
 
-/**
- * Converts the transported key into the raw bytes LiveKit's key provider needs.
- *
- * Raw bytes, never the base64url *string*, and this is not a stylistic choice —
- * it is the one thing that makes a browser and a phone able to hear each other.
- * LiveKit's key providers take either, and the two are not equivalent:
- *
- *   bytes  → HKDF-SHA256(key, salt "LKFrameEncryptionKey", info 0^128)
- *   string → PBKDF2-SHA256(utf8(key), same salt, 100k iterations)   [web only]
- *
- * The native FrameCryptor used by the iOS and Android SDKs implements only the
- * HKDF path; hand it a string and it hashes the *characters* rather than
- * running PBKDF2 over them. So a web client using the string form and a mobile
- * client in the same room derive different content-encryption keys, and every
- * frame each sends is undecryptable garbage to the other — with no error, since
- * an authentication failure is indistinguishable from a foreign key.
- *
- * Passing bytes puts both platforms on the single shared HKDF path.
- */
+/** Converts the transported key to bytes for room IDs, safety numbers and chat. */
 export function decodeRoomKey(key: string): ArrayBuffer {
   const bytes = fromBase64Url(key);
   // A fresh, exactly-sized buffer — never a view into a larger allocation,
   // which the key provider would read past.
   return bytes.buffer.slice(0, bytes.byteLength) as ArrayBuffer;
+}
+
+/**
+ * Returns the canonical media passphrase shared by every LiveKit SDK.
+ *
+ * LiveKit treats strings and raw buffers differently: strings select the
+ * cross-SDK PBKDF2 path, while a browser buffer selects HKDF. The invitation's
+ * exact 43-character base64url representation is therefore part of the media
+ * wire contract, not merely a transport encoding.
+ */
+export function mediaPassphrase(key: string): string {
+  if (!/^[A-Za-z0-9_-]{43}$/.test(key)) throw new Error('invalid room key');
+  const decoded = fromBase64Url(key);
+  if (decoded.byteLength !== KEY_BYTES) throw new Error('invalid room key');
+  return key;
 }
 
 const BASE64_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';

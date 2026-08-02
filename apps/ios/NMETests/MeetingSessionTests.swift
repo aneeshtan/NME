@@ -141,6 +141,20 @@ final class MeetingSessionTests: XCTestCase {
         XCTAssertEqual(session.state, .connected(relayed: false))
     }
 
+    func testEngineReportsActualLocalMediaAfterPermissionOutcome() async throws {
+        let fixture = try Fixture()
+        let API = FakeMeetingAPI(joinResults: [.credentials(fixture.direct)])
+        let engine = FakeMeetingEngine(outcomes: [.success(())])
+        let session = makeSession(API: API, engine: engine)
+        await session.join(identity: fixture.identity, displayName: "Guest", cameraEnabled: true)
+
+        engine.emit(.localMedia(microphoneEnabled: false, cameraEnabled: true))
+
+        XCTAssertFalse(session.microphoneEnabled)
+        XCTAssertTrue(session.cameraEnabled)
+        XCTAssertEqual(session.state, .connected(relayed: false))
+    }
+
     func testLeaveDisconnectsAndClearsEphemeralState() async throws {
         let fixture = try Fixture()
         let API = FakeMeetingAPI(joinResults: [.credentials(fixture.direct)])

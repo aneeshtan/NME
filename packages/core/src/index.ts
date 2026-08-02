@@ -16,6 +16,7 @@ export {
   decodeRoomKey,
   deriveRoomId,
   generateRoomKey,
+  mediaPassphrase,
   readRoomKeyFromAnyUrl,
   readRoomKeyFromUrl,
   safetyNumber,

@@ -8,10 +8,24 @@ import {
   decodeRoomKey,
   deriveRoomId,
   generateRoomKey,
+  mediaPassphrase,
   readRoomKeyFromAnyUrl,
   readRoomKeyFromUrl,
   safetyNumber,
 } from './e2ee';
+
+describe('mediaPassphrase', () => {
+  test('preserves the canonical invitation key for every LiveKit SDK', () => {
+    expect(mediaPassphrase(fixture.encodedRoomKey)).toBe(fixture.encodedRoomKey);
+    expect(new TextEncoder().encode(mediaPassphrase(fixture.encodedRoomKey))).toHaveLength(43);
+  });
+
+  test('never lets malformed material reach a media key provider', () => {
+    for (const value of ['', 'short', `${'A'.repeat(42)}=`, `${'A'.repeat(44)}`]) {
+      expect(() => mediaPassphrase(value), value).toThrow('invalid room key');
+    }
+  });
+});
 
 describe('generateRoomKey', () => {
   test('produces a 256-bit key in unpadded base64url', () => {

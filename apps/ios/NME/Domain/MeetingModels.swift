@@ -54,6 +54,7 @@ enum MeetingEngineError: Error, Equatable, Sendable {
 
 enum MeetingEngineEvent: Equatable, Sendable {
     case participants([ParticipantSnapshot])
+    case localMedia(microphoneEnabled: Bool, cameraEnabled: Bool)
     case reconnecting
     case reconnected
     case disconnected(MeetingEngineError?)
