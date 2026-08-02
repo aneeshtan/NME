@@ -203,7 +203,9 @@ Connection order is fixed:
 2. Fetch runtime configuration and request a join token concurrently.
 3. Poll every two seconds for up to five minutes when lobby admission is
    required.
-4. Configure the LiveKit room and E2EE provider with the raw 32-byte key.
+4. Configure every LiveKit client with the same 43-character room-key
+   passphrase, while retaining the decoded 32 bytes for identity and chat
+   derivation.
 5. Attempt a direct connection with an eight-second peer-connection budget.
 6. If and only if the failure is a media-path failure, request a fresh token and
    relay credentials, then retry in relay-only mode.
@@ -218,8 +220,13 @@ the room key from the coordinator.
 
 ### End-to-end encryption
 
-Media uses the LiveKit Swift SDK's native frame encryption with the same raw
-32-byte shared key used by the web client. A compatibility milestone must prove
+Media uses the LiveKit Swift SDK's native frame encryption. Inspection of the
+pinned Swift 2.13.0 API established that its public shared-key provider accepts
+a string, while the JavaScript SDK documents that form as the
+maximum-compatibility path across SDKs. All NME clients therefore pass the same
+43-character base64url room-key string to LiveKit. The string still contains
+256 random bits; the decoded raw bytes remain authoritative for room IDs,
+safety numbers, and chat derivation. A compatibility milestone must prove
 browser-to-iPhone and iPhone-to-iPhone media before feature work proceeds past
 the meeting shell.
 
@@ -395,4 +402,3 @@ The redevelopment is complete only when all of the following are true:
   logs or persistent room history.
 - The bundle identifier, capabilities, permissions, privacy links, support link,
   export declaration, icons, and launch assets are ready for App Store archive.
-
