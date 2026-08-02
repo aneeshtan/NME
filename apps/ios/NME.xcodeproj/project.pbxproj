@@ -1,0 +1,577 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		102C5BA6B0579F7908648EBB /* AppConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A77E62DDC9D5370381E585E /* AppConfiguration.swift */; };
+		496067E567204CA341BDBB87 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E39AD65CE784064C5350788 /* HomeView.swift */; };
+		6215CE517B37C4028714D679 /* LiveKit in Frameworks */ = {isa = PBXBuildFile; productRef = E3D8B6088F6B4F9D08165F6E /* LiveKit */; };
+		81AE1CA1501B5F868FDE8365 /* NMEUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E6F5CA1C3A50D603884DF0B /* NMEUITests.swift */; };
+		91FC0AC67E0FF8C421AF6248 /* AppLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1D8A23355171456326DF25A /* AppLaunchTests.swift */; };
+		B3015C77742ED05D57FCFACD /* NMEApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D5C1FFDCF5F0A5A5E090655 /* NMEApp.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		C191323A08D94450C26AB8FC /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = ADD2717789C5F727C45BFD2A /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 5316E629CBE82509273FA8EE;
+			remoteInfo = NME;
+		};
+		C8DE36F0C31BC51B358EC6E7 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = ADD2717789C5F727C45BFD2A /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 5316E629CBE82509273FA8EE;
+			remoteInfo = NME;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		0A77E62DDC9D5370381E585E /* AppConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfiguration.swift; sourceTree = "<group>"; };
+		0D5C1FFDCF5F0A5A5E090655 /* NMEApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NMEApp.swift; sourceTree = "<group>"; };
+		1E39AD65CE784064C5350788 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		1F35F9F9484A493AB6EE7C5B /* NME.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = NME.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		22A457F9B4315F0E5EB5F05A /* Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
+		4CEFE8672C6A260F930DE895 /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
+		7E6F5CA1C3A50D603884DF0B /* NMEUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NMEUITests.swift; sourceTree = "<group>"; };
+		BC26256D67FAE849D605918A /* NMEUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = NMEUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		C1D8A23355171456326DF25A /* AppLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLaunchTests.swift; sourceTree = "<group>"; };
+		DEEC62A055165C28704956C2 /* NMETests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = NMETests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		07F961A58D1658282502FA51 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6215CE517B37C4028714D679 /* LiveKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		11627E4372E8191D33EEC464 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				0A77E62DDC9D5370381E585E /* AppConfiguration.swift */,
+				0D5C1FFDCF5F0A5A5E090655 /* NMEApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		138BD4893B01AB5038C9F449 /* NME */ = {
+			isa = PBXGroup;
+			children = (
+				11627E4372E8191D33EEC464 /* App */,
+				C7D41EF838BDDD53430A3D8D /* Features */,
+			);
+			path = NME;
+			sourceTree = "<group>";
+		};
+		291C63CB179038DC328AB554 = {
+			isa = PBXGroup;
+			children = (
+				6A1B37EE049B532C9578ACAA /* Configuration */,
+				138BD4893B01AB5038C9F449 /* NME */,
+				494323C6231E7B3B4984E7C3 /* NMETests */,
+				5C6C08BE3E291E74C807E671 /* NMEUITests */,
+				74B32FF5BFA65DE4BCEC9300 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		494323C6231E7B3B4984E7C3 /* NMETests */ = {
+			isa = PBXGroup;
+			children = (
+				C1D8A23355171456326DF25A /* AppLaunchTests.swift */,
+			);
+			path = NMETests;
+			sourceTree = "<group>";
+		};
+		58348762C784135A6A377120 /* Home */ = {
+			isa = PBXGroup;
+			children = (
+				1E39AD65CE784064C5350788 /* HomeView.swift */,
+			);
+			path = Home;
+			sourceTree = "<group>";
+		};
+		5C6C08BE3E291E74C807E671 /* NMEUITests */ = {
+			isa = PBXGroup;
+			children = (
+				7E6F5CA1C3A50D603884DF0B /* NMEUITests.swift */,
+			);
+			path = NMEUITests;
+			sourceTree = "<group>";
+		};
+		6A1B37EE049B532C9578ACAA /* Configuration */ = {
+			isa = PBXGroup;
+			children = (
+				4CEFE8672C6A260F930DE895 /* Debug.xcconfig */,
+				22A457F9B4315F0E5EB5F05A /* Release.xcconfig */,
+			);
+			path = Configuration;
+			sourceTree = "<group>";
+		};
+		74B32FF5BFA65DE4BCEC9300 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				1F35F9F9484A493AB6EE7C5B /* NME.app */,
+				DEEC62A055165C28704956C2 /* NMETests.xctest */,
+				BC26256D67FAE849D605918A /* NMEUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		C7D41EF838BDDD53430A3D8D /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				58348762C784135A6A377120 /* Home */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		5316E629CBE82509273FA8EE /* NME */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C66F898CDA0CB56A96281904 /* Build configuration list for PBXNativeTarget "NME" */;
+			buildPhases = (
+				85377EB1A4A8F4FC828D3C91 /* Sources */,
+				07F961A58D1658282502FA51 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = NME;
+			packageProductDependencies = (
+				E3D8B6088F6B4F9D08165F6E /* LiveKit */,
+			);
+			productName = NME;
+			productReference = 1F35F9F9484A493AB6EE7C5B /* NME.app */;
+			productType = "com.apple.product-type.application";
+		};
+		DFC27A06DA9D930EB6554F58 /* NMEUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5DB9DD54207EE05A42980E15 /* Build configuration list for PBXNativeTarget "NMEUITests" */;
+			buildPhases = (
+				1FC21899738A3ADA493EEE71 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				9FC7CCC2FBD47036A9FF29CF /* PBXTargetDependency */,
+			);
+			name = NMEUITests;
+			packageProductDependencies = (
+			);
+			productName = NMEUITests;
+			productReference = BC26256D67FAE849D605918A /* NMEUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+		E8EF92C23228FAFEB1C27793 /* NMETests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E0A396725BE1B68C79B1F97C /* Build configuration list for PBXNativeTarget "NMETests" */;
+			buildPhases = (
+				4F6943C26904EAB0E76D8377 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				976489BBD64BD11AFE9DE27E /* PBXTargetDependency */,
+			);
+			name = NMETests;
+			packageProductDependencies = (
+			);
+			productName = NMETests;
+			productReference = DEEC62A055165C28704956C2 /* NMETests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		ADD2717789C5F727C45BFD2A /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					5316E629CBE82509273FA8EE = {
+						DevelopmentTeam = WC955H63L3;
+						ProvisioningStyle = Automatic;
+					};
+					DFC27A06DA9D930EB6554F58 = {
+						TestTargetID = 5316E629CBE82509273FA8EE;
+					};
+				};
+			};
+			buildConfigurationList = F37633E42FE1BD41B3109266 /* Build configuration list for PBXProject "NME" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 291C63CB179038DC328AB554;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				D1D26BED464D4D150BC08090 /* XCRemoteSwiftPackageReference "client-sdk-swift" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 74B32FF5BFA65DE4BCEC9300 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				5316E629CBE82509273FA8EE /* NME */,
+				E8EF92C23228FAFEB1C27793 /* NMETests */,
+				DFC27A06DA9D930EB6554F58 /* NMEUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		1FC21899738A3ADA493EEE71 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				81AE1CA1501B5F868FDE8365 /* NMEUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		4F6943C26904EAB0E76D8377 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				91FC0AC67E0FF8C421AF6248 /* AppLaunchTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		85377EB1A4A8F4FC828D3C91 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				102C5BA6B0579F7908648EBB /* AppConfiguration.swift in Sources */,
+				496067E567204CA341BDBB87 /* HomeView.swift in Sources */,
+				B3015C77742ED05D57FCFACD /* NMEApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		976489BBD64BD11AFE9DE27E /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 5316E629CBE82509273FA8EE /* NME */;
+			targetProxy = C191323A08D94450C26AB8FC /* PBXContainerItemProxy */;
+		};
+		9FC7CCC2FBD47036A9FF29CF /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 5316E629CBE82509273FA8EE /* NME */;
+			targetProxy = C8DE36F0C31BC51B358EC6E7 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		098B4988CC1E8A82110756B9 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.ctrlaltl.nme.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = NME;
+			};
+			name = Release;
+		};
+		25CF6D247D24470A6AAA1F99 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.ctrlaltl.nme.uitests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = NME;
+			};
+			name = Debug;
+		};
+		2727C72D10431E68F3D9B8E4 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 4CEFE8672C6A260F930DE895 /* Debug.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = NME/Resources/NME.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = WC955H63L3;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = NME/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.ctrlaltl.nme;
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		298EC230A8ABD42A81C4D6EE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.ctrlaltl.nme.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/NME.app/NME";
+			};
+			name = Release;
+		};
+		9371D230FC9F525302558DF9 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		9BA299FF0ACB1784BFBDA050 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = 22A457F9B4315F0E5EB5F05A /* Release.xcconfig */;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = NME/Resources/NME.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = WC955H63L3;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = NME/Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.ctrlaltl.nme;
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		D357E9C513005ACD42EFA062 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.ctrlaltl.nme.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/NME.app/NME";
+			};
+			name = Debug;
+		};
+		DD5635E105BF48B1C4D9C9D2 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.4;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		5DB9DD54207EE05A42980E15 /* Build configuration list for PBXNativeTarget "NMEUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				25CF6D247D24470A6AAA1F99 /* Debug */,
+				098B4988CC1E8A82110756B9 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		C66F898CDA0CB56A96281904 /* Build configuration list for PBXNativeTarget "NME" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2727C72D10431E68F3D9B8E4 /* Debug */,
+				9BA299FF0ACB1784BFBDA050 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		E0A396725BE1B68C79B1F97C /* Build configuration list for PBXNativeTarget "NMETests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D357E9C513005ACD42EFA062 /* Debug */,
+				298EC230A8ABD42A81C4D6EE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		F37633E42FE1BD41B3109266 /* Build configuration list for PBXProject "NME" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				9371D230FC9F525302558DF9 /* Debug */,
+				DD5635E105BF48B1C4D9C9D2 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		D1D26BED464D4D150BC08090 /* XCRemoteSwiftPackageReference "client-sdk-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/livekit/client-sdk-swift.git";
+			requirement = {
+				kind = exactVersion;
+				version = 2.13.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		E3D8B6088F6B4F9D08165F6E /* LiveKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D1D26BED464D4D150BC08090 /* XCRemoteSwiftPackageReference "client-sdk-swift" */;
+			productName = LiveKit;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = ADD2717789C5F727C45BFD2A /* Project object */;
+}

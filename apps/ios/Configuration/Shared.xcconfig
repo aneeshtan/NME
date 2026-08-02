@@ -1,0 +1,7 @@
+PRODUCT_NAME = NME
+MARKETING_VERSION = 1.0.0
+CURRENT_PROJECT_VERSION = 1
+IPHONEOS_DEPLOYMENT_TARGET = 16.4
+NME_ORIGIN = https:/$()/nmetalk.com
+NME_SUPPORT_URL = https:/$()/nmetalk.com/how-it-works
+NME_PRIVACY_URL = https:/$()/nmetalk.com/privacy
