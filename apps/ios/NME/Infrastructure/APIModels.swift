@@ -46,3 +46,9 @@ struct CreateRoomResponse: Codable, Equatable, Sendable {
     let roomId: String
     let hostKey: String?
 }
+
+protocol RoomCreating: Sendable {
+    func createRoom(roomID: String, lobby: Bool) async throws -> CreateRoomResponse
+}
+
+extension APIClient: RoomCreating {}
