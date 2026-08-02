@@ -150,8 +150,10 @@ and a ten-second request timeout. It models the existing endpoints for:
 - initial join;
 - lobby claim polling;
 - listing and resolving knocks;
-- relay credential retry;
-- participant reporting.
+- relay credential retry.
+
+Participant reporting remains a local mail-composition flow, matching the
+existing mobile client. No report body is sent to the control-plane API.
 
 The origin is HTTPS-only and compiled into the build. Host credentials are sent
 only through `X-Host-Key`. API failures are converted into typed `MeetingError`

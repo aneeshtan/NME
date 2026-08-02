@@ -370,8 +370,8 @@ git commit -m "Add browser-compatible native chat encryption"
 
 - [ ] **Step 1: Write failing request-contract tests**
 
-Test exact paths and bodies for configuration, room creation, join, claim,
-knock listing/resolution, and reporting. Assert that host keys use
+Test exact paths and bodies for configuration, room creation, join, claim, and
+knock listing/resolution. Assert that host keys use
 `X-Host-Key`, cookies are disabled, an HTTPS origin is required, bodyless
 requests omit `Content-Type`, JSON requests set it, and timeout/network/server
 errors map to stable codes.
@@ -707,7 +707,9 @@ closed, and clear everything at meeting end.
 
 Long-pressing a remote tile presents Block and Block & Report. Blocking calls
 `set(subscribed: false)` for each remote publication and removes the tile.
-Reporting submits the existing report endpoint without room keys or chat data.
+Reporting opens a locally composed `mailto:` draft and falls back to the support
+page when mail is unavailable. It includes the room ID, self-declared participant
+name, and timestamp, but never room keys, host keys, chat, or media.
 
 - [ ] **Step 6: Run view-model and UI tests**
 
