@@ -8,6 +8,7 @@ build/
 .DS_Store
 coverage/
 *.tsbuildinfo
+.worktrees/
 infra/caddy_data/
 infra/caddy_config/
 
