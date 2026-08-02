@@ -10,8 +10,10 @@
 		0354D77B77DA8CF44A85BC61 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = C12BBDEC78ED331F0E2CB5ED /* APIClient.swift */; };
 		102C5BA6B0579F7908648EBB /* AppConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A77E62DDC9D5370381E585E /* AppConfiguration.swift */; };
 		16182A8CF2C5405A40755535 /* RoomIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = A14C530522D47CAF6B969690 /* RoomIdentity.swift */; };
+		18AEEA2E933D3C3581E4DC05 /* CredentialStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85D8C3D89150F3080B662D74 /* CredentialStoreTests.swift */; };
 		2B4333CAAA67C7D88430C0A2 /* URLProtocolStub.swift in Sources */ = {isa = PBXBuildFile; fileRef = A604FC9CEB6FB5297554D097 /* URLProtocolStub.swift */; };
 		3280D7A5ED8F082AEF9A1500 /* MeetingError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7442A85CDE1BBC37B4B95CE9 /* MeetingError.swift */; };
+		38A2CE63CF088A69DA95F5BC /* AppLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4E036D1C2572BED9C58D195 /* AppLogger.swift */; };
 		3A8F992C3460F9E227A45713 /* ChatMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 328AAFEF591DDA3C2EED2754 /* ChatMessage.swift */; };
 		496067E567204CA341BDBB87 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E39AD65CE784064C5350788 /* HomeView.swift */; };
 		504E9B2B5EE8602C2C56CA6A /* MessageCipherTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 219701CD7361B43FA78717E1 /* MessageCipherTests.swift */; };
@@ -23,6 +25,8 @@
 		91FC0AC67E0FF8C421AF6248 /* AppLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1D8A23355171456326DF25A /* AppLaunchTests.swift */; };
 		98920E9BC0B428F2F92DC137 /* APIClientTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A434AABDFCFF4ED8A0456014 /* APIClientTests.swift */; };
 		9E72B7AB0300E48BBDFCD4F8 /* APIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50B3B188DF283F0B10571AE7 /* APIModels.swift */; };
+		B09F2C2C6E24AA1DD0CC8E57 /* CredentialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EF1C3D1DA9C8463E0DA8CD7 /* CredentialStore.swift */; };
+		B17B87E86B19CAF6D722F9E3 /* KeychainClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EE6E094C06786D7A494558D /* KeychainClient.swift */; };
 		B3015C77742ED05D57FCFACD /* NMEApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D5C1FFDCF5F0A5A5E090655 /* NMEApp.swift */; };
 /* End PBXBuildFile section */
 
@@ -46,6 +50,7 @@
 /* Begin PBXFileReference section */
 		0A77E62DDC9D5370381E585E /* AppConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppConfiguration.swift; sourceTree = "<group>"; };
 		0D5C1FFDCF5F0A5A5E090655 /* NMEApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NMEApp.swift; sourceTree = "<group>"; };
+		0EF1C3D1DA9C8463E0DA8CD7 /* CredentialStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialStore.swift; sourceTree = "<group>"; };
 		1E39AD65CE784064C5350788 /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
 		1F35F9F9484A493AB6EE7C5B /* NME.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = NME.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		219701CD7361B43FA78717E1 /* MessageCipherTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MessageCipherTests.swift; sourceTree = "<group>"; };
@@ -53,12 +58,15 @@
 		328AAFEF591DDA3C2EED2754 /* ChatMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatMessage.swift; sourceTree = "<group>"; };
 		4CEFE8672C6A260F930DE895 /* Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
 		50B3B188DF283F0B10571AE7 /* APIModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIModels.swift; sourceTree = "<group>"; };
+		6EE6E094C06786D7A494558D /* KeychainClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainClient.swift; sourceTree = "<group>"; };
 		7442A85CDE1BBC37B4B95CE9 /* MeetingError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingError.swift; sourceTree = "<group>"; };
 		76ED7E9D34A24A0D38BE46CE /* RoomCrypto.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomCrypto.swift; sourceTree = "<group>"; };
 		7E6F5CA1C3A50D603884DF0B /* NMEUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NMEUITests.swift; sourceTree = "<group>"; };
+		85D8C3D89150F3080B662D74 /* CredentialStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CredentialStoreTests.swift; sourceTree = "<group>"; };
 		A14C530522D47CAF6B969690 /* RoomIdentity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomIdentity.swift; sourceTree = "<group>"; };
 		A434AABDFCFF4ED8A0456014 /* APIClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClientTests.swift; sourceTree = "<group>"; };
 		A604FC9CEB6FB5297554D097 /* URLProtocolStub.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = URLProtocolStub.swift; sourceTree = "<group>"; };
+		B4E036D1C2572BED9C58D195 /* AppLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppLogger.swift; sourceTree = "<group>"; };
 		B4F401DE63FC20D1CBCFD6ED /* RoomIdentityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoomIdentityTests.swift; sourceTree = "<group>"; };
 		BC26256D67FAE849D605918A /* NMEUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = NMEUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		C12BBDEC78ED331F0E2CB5ED /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
@@ -116,6 +124,7 @@
 			children = (
 				A434AABDFCFF4ED8A0456014 /* APIClientTests.swift */,
 				C1D8A23355171456326DF25A /* AppLaunchTests.swift */,
+				85D8C3D89150F3080B662D74 /* CredentialStoreTests.swift */,
 				219701CD7361B43FA78717E1 /* MessageCipherTests.swift */,
 				B4F401DE63FC20D1CBCFD6ED /* RoomIdentityTests.swift */,
 				A604FC9CEB6FB5297554D097 /* URLProtocolStub.swift */,
@@ -144,6 +153,9 @@
 			children = (
 				C12BBDEC78ED331F0E2CB5ED /* APIClient.swift */,
 				50B3B188DF283F0B10571AE7 /* APIModels.swift */,
+				B4E036D1C2572BED9C58D195 /* AppLogger.swift */,
+				0EF1C3D1DA9C8463E0DA8CD7 /* CredentialStore.swift */,
+				6EE6E094C06786D7A494558D /* KeychainClient.swift */,
 			);
 			path = Infrastructure;
 			sourceTree = "<group>";
@@ -309,6 +321,7 @@
 			files = (
 				98920E9BC0B428F2F92DC137 /* APIClientTests.swift in Sources */,
 				91FC0AC67E0FF8C421AF6248 /* AppLaunchTests.swift in Sources */,
+				18AEEA2E933D3C3581E4DC05 /* CredentialStoreTests.swift in Sources */,
 				504E9B2B5EE8602C2C56CA6A /* MessageCipherTests.swift in Sources */,
 				727E6B8143F5707937653965 /* RoomIdentityTests.swift in Sources */,
 				2B4333CAAA67C7D88430C0A2 /* URLProtocolStub.swift in Sources */,
@@ -322,8 +335,11 @@
 				0354D77B77DA8CF44A85BC61 /* APIClient.swift in Sources */,
 				9E72B7AB0300E48BBDFCD4F8 /* APIModels.swift in Sources */,
 				102C5BA6B0579F7908648EBB /* AppConfiguration.swift in Sources */,
+				38A2CE63CF088A69DA95F5BC /* AppLogger.swift in Sources */,
 				3A8F992C3460F9E227A45713 /* ChatMessage.swift in Sources */,
+				B09F2C2C6E24AA1DD0CC8E57 /* CredentialStore.swift in Sources */,
 				496067E567204CA341BDBB87 /* HomeView.swift in Sources */,
+				B17B87E86B19CAF6D722F9E3 /* KeychainClient.swift in Sources */,
 				3280D7A5ED8F082AEF9A1500 /* MeetingError.swift in Sources */,
 				6CCC0A81CA1FF0FAA06BA117 /* MessageCipher.swift in Sources */,
 				B3015C77742ED05D57FCFACD /* NMEApp.swift in Sources */,
