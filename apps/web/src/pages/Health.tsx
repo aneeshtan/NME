@@ -22,6 +22,17 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import { PageLayout, Section } from '../components/PageLayout';
+import {
+  countryName,
+  formatAgo,
+  formatBytes,
+  formatCounts,
+  formatDuration,
+  formatHour,
+  formatMb,
+  formatMs,
+  formatPercent,
+} from '../lib/format';
 
 const TOKEN_KEY = 'nme.adminToken';
 
@@ -311,6 +322,15 @@ export default function Health() {
                 what="The SFU metrics endpoint"
                 detail={stats.sfu.error}
                 hint="LiveKit exposes these on :6789 inside the compose network — check prometheus_port in infra/livekit.yaml."
+              />
+            ) : stats.sfu && !stats.sfu.hasCounters ? (
+              // Reached LiveKit, but it exposed no byte counters. Distinct from
+              // zero traffic, and worth saying so: a version that renamed these
+              // series would otherwise render as a confident "0 B".
+              <Unavailable
+                what="Byte counters"
+                detail="LiveKit answered, but exposed no livekit_packet_bytes series."
+                hint="Most likely a LiveKit version that names them differently. The figures below would read zero rather than unknown, so they are withheld."
               />
             ) : (
               <>
@@ -883,80 +903,4 @@ function Bars({
       ))}
     </div>
   );
-}
-
-function formatDuration(seconds: number): string {
-  if (seconds < 3600) return `${Math.round(seconds / 60)}m`;
-  if (seconds < 86_400) return `${Math.round(seconds / 3600)}h`;
-  return `${Math.round(seconds / 86_400)}d`;
-}
-
-function formatHour(hour: number): string {
-  return new Date(hour * 3_600_000).toLocaleTimeString([], { hour: '2-digit' });
-}
-
-/**
- * Bytes in the units a host bills in — powers of 1000, not 1024. A provider
- * quoting "2 TB of transfer" means 2,000,000,000,000 bytes, and showing GiB
- * against that would put this dashboard in disagreement with the invoice.
- */
-function formatBytes(bytes: number): string {
-  if (bytes < 1000) return `${Math.round(bytes)} B`;
-
-  const units = ['kB', 'MB', 'GB', 'TB', 'PB'];
-  let value = bytes / 1000;
-  let unit = 0;
-
-  while (value >= 1000 && unit < units.length - 1) {
-    value /= 1000;
-    unit += 1;
-  }
-
-  return `${value >= 100 ? Math.round(value) : Math.round(value * 10) / 10} ${units[unit]}`;
-}
-
-function formatMb(megabytes: number): string {
-  return megabytes >= 1024 ? `${Math.round((megabytes / 1024) * 10) / 10} GB` : `${megabytes} MB`;
-}
-
-function formatPercent(value: number | null): string {
-  return value === null ? '—' : `${value}%`;
-}
-
-function formatMs(value: number | null): string {
-  return value === null ? '—' : `${value} ms`;
-}
-
-/** `{audio: 3, video: 2}` as `audio 3 · video 2`. */
-function formatCounts(counts: Record<string, number>): string {
-  return Object.entries(counts)
-    .filter(([, count]) => count > 0)
-    .map(([key, count]) => `${key} ${count}`)
-    .join(' · ');
-}
-
-function formatAgo(at: number | null): string {
-  if (!at) return 'never';
-  const seconds = Math.max(0, Math.round((Date.now() - at) / 1000));
-  return seconds < 60 ? `${seconds}s ago` : `${Math.round(seconds / 60)}m ago`;
-}
-
-/**
- * The country's name, falling back to its code.
- *
- * `Intl.DisplayNames` is in every browser this app supports, and it saves
- * shipping a table of 250 names that would then need maintaining.
- */
-const regionNames =
-  typeof Intl !== 'undefined' && 'DisplayNames' in Intl
-    ? new Intl.DisplayNames(['en'], { type: 'region' })
-    : null;
-
-function countryName(code: string): string {
-  if (code === 'ZZ') return 'Unresolved';
-  try {
-    return regionNames?.of(code) ?? code;
-  } catch {
-    return code;
-  }
 }
