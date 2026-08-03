@@ -13,6 +13,7 @@ import { webhookRoutes } from './routes/webhooks.js';
 import { knockRoutes } from './routes/knocks.js';
 import { adminRoutes } from './routes/admin.js';
 import { recordHttpResponse } from './lib/metrics.js';
+import { clientIp } from './lib/clientIp.js';
 import type { NonceStore } from './lib/nonceStore.js';
 import type { LobbyStore } from './lib/lobby.js';
 import type { Blocklist } from './lib/blocklist.js';
@@ -63,7 +64,7 @@ export async function buildApp(
         req: (request) => ({
           method: request.method,
           url: request.url,
-          remoteAddress: request.ip,
+          remoteAddress: clientIp(request),
         }),
       },
     },
@@ -173,7 +174,7 @@ export async function buildApp(
     // A shared bucket is what makes limits meaningful behind a load balancer;
     // without Redis each replica would enforce only its own fraction of the limit.
     ...(config.redis.url ? { redis: createLimiterRedis() } : {}),
-    keyGenerator: (request) => request.ip,
+    keyGenerator: (request) => clientIp(request),
     // Do not reveal the limit ceiling to clients probing for it.
     addHeadersOnExceeding: { 'x-ratelimit-limit': false, 'x-ratelimit-remaining': false },
     errorResponseBuilder: (_request, context) => ({
@@ -209,7 +210,7 @@ export async function buildApp(
    */
   app.addHook('onRequest', async (request, reply) => {
     if (request.url.startsWith('/api/webhooks/')) return;
-    if (!(await blocklist.isBlocked(request.ip))) return;
+    if (!(await blocklist.isBlocked(clientIp(request)))) return;
 
     // 403 with no detail. Explaining the block would tell an abuser exactly
     // what to change.

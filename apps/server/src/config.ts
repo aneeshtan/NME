@@ -77,6 +77,17 @@ export const config = Object.freeze({
     port: integer('PORT', 8080, 1, 65535),
     /** `true` trusts every hop; prefer a CIDR so clients cannot spoof X-Forwarded-For. */
     trustProxy: optional('TRUST_PROXY', '127.0.0.1'),
+
+    /**
+     * Read `CF-Connecting-IP` when the request arrives from Cloudflare.
+     *
+     * Required for a deployment behind Cloudflare and wrong for one that is
+     * not, which is why it is a switch rather than a default. Without it every
+     * request appears to come from a Cloudflare edge address — see
+     * lib/clientIp.ts for what that breaks, and for the two conditions that
+     * must both hold before the header is believed.
+     */
+    trustCloudflare: boolean('TRUST_CLOUDFLARE', false),
     corsOrigins: originList('CORS_ORIGINS'),
   }),
 

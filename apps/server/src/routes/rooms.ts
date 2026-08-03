@@ -17,6 +17,7 @@ import {
   recordTokenIssued,
 } from '../lib/metrics.js';
 import { lookupCountry } from '../lib/geoip.js';
+import { clientIp } from '../lib/clientIp.js';
 import { createRoomId, isValidRoomId } from '../lib/ids.js';
 import { normalizeDisplayName, DISPLAY_NAME_MAX_LENGTH } from '../lib/displayName.js';
 import { countParticipants, ensureRoom, issueJoinToken } from '../lib/livekit.js';
@@ -206,13 +207,13 @@ export const roomRoutes: FastifyPluginAsync<Options> = async (app: FastifyInstan
       const { displayName, relay } = request.body as { displayName: string; relay?: boolean };
 
       if (!isValidRoomId(roomId)) {
-        refuse('bad_room_id', request.ip);
+        refuse('bad_room_id', clientIp(request));
         return reply.code(404).send({ error: 'NOT_FOUND', message: 'Meeting not found.' });
       }
 
       const name = normalizeDisplayName(displayName);
       if (name === null) {
-        refuse('bad_name', request.ip);
+        refuse('bad_name', clientIp(request));
         return reply.code(400).send({
           error: 'INVALID_NAME',
           message: 'Please enter a name using ordinary characters.',
@@ -224,7 +225,7 @@ export const roomRoutes: FastifyPluginAsync<Options> = async (app: FastifyInstan
       const occupants = await countParticipants(roomId);
       recordParticipantCount(occupants);
       if (occupants >= config.room.maxParticipants) {
-        refuse('room_full', request.ip);
+        refuse('room_full', clientIp(request));
         return reply.code(409).send({
           error: 'ROOM_FULL',
           message: 'This meeting is full.',
@@ -261,7 +262,7 @@ export const roomRoutes: FastifyPluginAsync<Options> = async (app: FastifyInstan
       }
 
       recordTokenIssued();
-      recordCountry(lookupCountry(request.ip), 'joined');
+      recordCountry(lookupCountry(clientIp(request)), 'joined');
       const issued = await issueJoinToken(roomId, name);
       await nonces.register(issued.identity, config.room.tokenTtlSeconds);
 

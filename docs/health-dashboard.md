@@ -162,6 +162,43 @@ it does not degrade anything — Docker kills the process. The same is true of t
 much larger cap on the LiveKit container, where it would drop every meeting on
 the host at once. Both live in `infra/docker-compose.yml`.
 
+### If you are behind Cloudflare, read this first
+
+Everything keyed on an address — countries, the offender list, blocking, and the
+rate limiter — is wrong on a Cloudflare-fronted deployment until one flag is set.
+
+`X-Forwarded-For` arrives as `<real client>, <cloudflare edge>`. Fastify walks it
+from the right and stops at the first hop it does not trust, and `TRUST_PROXY`
+defaults to the Docker bridge — `172.16.0.0/12`. **No Cloudflare range is inside
+that.** Their edge lives in `172.64.0.0/13`, `162.158.0.0/15`, `104.16.0.0/13`
+and others, so the walk stops on Cloudflare and every request looks like it came
+from there.
+
+The visible symptoms: every country reads as wherever the point of presence is,
+the offender list fills with Cloudflare addresses, and — the one that bites
+without anyone connecting it to Cloudflare — **all users behind a given point of
+presence share one rate-limit bucket**, so the per-minute ceilings are reached by
+aggregate traffic rather than by any individual.
+
+```ini
+# .env
+TRUST_CLOUDFLARE=true
+```
+
+That reads `CF-Connecting-IP`, but only when the request genuinely arrived from a
+published Cloudflare range — a header from anywhere else is ignored, so somebody
+who finds the origin address cannot claim to be another user and evade a block.
+
+**Close the origin as well.** The range check is defence in depth, not the whole
+defence: an origin reachable directly is an origin whose Cloudflare protections
+can be skipped entirely. Allow inbound 443 only from
+[Cloudflare's ranges](https://www.cloudflare.com/ips/), and leave the media ports
+(7881/tcp, 7882/udp) open to everyone — media does not and cannot go through
+Cloudflare's proxy.
+
+To check which of the two applies to you: `dig +short <your domain>`. Addresses
+in Cloudflare's ranges mean the proxy is on.
+
 ### Countries
 
 Off unless a database is configured. Nothing is bundled and nothing is

@@ -73,6 +73,14 @@ services:
       CORS_ORIGINS: https://${APP_DOMAIN}
       # Trust forwarded headers only from the compose bridge network.
       TRUST_PROXY: ${TRUST_PROXY:-172.16.0.0/12}
+      # Set to true when Cloudflare's proxy is in front of this deployment (an
+      # orange cloud on the DNS record). Without it every request appears to
+      # come from a Cloudflare edge address, because their ranges sit outside
+      # the bridge network trusted above — which means one shared rate-limit
+      # bucket per point of presence, and a blocklist of Cloudflare addresses.
+      # Requires the origin to accept traffic only from Cloudflare; see
+      # docs/health-dashboard.md.
+      TRUST_CLOUDFLARE: ${TRUST_CLOUDFLARE:-false}
       LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:?LIVEKIT_API_KEY is empty - run Compose from the repo root WITH --env-file .env (it resolves .env next to the compose file, i.e. infra/, not your shell's directory)}
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?LIVEKIT_API_SECRET is empty - run Compose from the repo root WITH --env-file .env (it resolves .env next to the compose file, i.e. infra/, not your shell's directory)}
       LIVEKIT_HOST: http://livekit:7880
