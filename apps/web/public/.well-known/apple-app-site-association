@@ -2,7 +2,7 @@
   "applinks": {
     "details": [
       {
-        "appIDs": ["REPLACE_WITH_TEAM_ID.com.nmetalk.app"],
+        "appIDs": ["WC955H63L3.com.ctrlaltl.nme"],
         "components": [
           { "/": "/", "comment": "Short meeting links; the key is in the fragment." },
           { "/": "/r/*", "comment": "The older long link form." }

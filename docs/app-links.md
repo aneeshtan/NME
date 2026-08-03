@@ -4,13 +4,19 @@ These two files are how the domain vouches for the mobile apps. Without them a
 meeting link opens in the browser instead of the app — everything still works,
 it just is not what people expect from a tapped invitation.
 
-Both ship with placeholders and **must be filled in before the apps are
-published**. See `docs/store-submission.md` for where each value comes from.
+The Apple identifier is filled in for the shipping native target in this
+repository. Android still needs the Play App Signing fingerprint before
+publication.
+
+> Deployment status (checked 3 August 2026): the live Apple file still serves
+> `REPLACE_WITH_TEAM_ID.com.nmetalk.app`. Deploy the checked-in web build before
+> testing Universal Links or submitting the iOS app. The live response already
+> has the correct `application/json` content type.
 
 ## apple-app-site-association
 
-Replace `REPLACE_WITH_TEAM_ID` with the Apple Developer Team ID, giving
-`ABCDE12345.com.nmetalk.app`.
+The checked-in identifier is `WC955H63L3.com.ctrlaltl.nme`: Apple Developer
+Team ID followed by the native app's bundle identifier.
 
 Notes that cost people days:
 

@@ -508,14 +508,16 @@ This needs two documents served from the meeting domain; see
 ### Building
 
 ```bash
-npm run prebuild -w @nme/mobile     # generate ios/ and android/
-npm run ios -w @nme/mobile          # needs Xcode and CocoaPods
-npm run android -w @nme/mobile      # needs a JDK and the Android SDK
+xcodegen generate --spec apps/ios/project.yml  # native Swift iOS project
+xcodebuild -project apps/ios/NME.xcodeproj -scheme NME \
+  -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO
+npm run android -w @nme/mobile                # React Native Android client
 ```
 
-`ios/` and `android/` are generated from `app.config.ts` and are gitignored —
-edit the config, not the output. Point a build at another deployment with
-`NME_HOST=meet.example.com`.
+`apps/ios` is the native Swift source of truth and has no CocoaPods, Expo, or
+JavaScript runtime dependency. `NME.xcodeproj` is generated deterministically
+from `project.yml`; edit the YAML and Swift sources, then regenerate. The
+Android project remains generated from `apps/mobile/app.config.ts`.
 
 ### Publishing
 
