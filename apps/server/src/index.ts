@@ -11,6 +11,8 @@ import { config } from './config.js';
 import { createNonceStore } from './lib/nonceStore.js';
 import { createLobbyStore } from './lib/lobby.js';
 import { createBlocklist } from './lib/blocklist.js';
+import { initGeoip } from './lib/geoip.js';
+import { startSfuPolling } from './lib/sfu.js';
 import { Redis } from 'ioredis';
 
 const nonces = createNonceStore(config.redis.url, config.redis.password);
@@ -33,6 +35,19 @@ const lobby = createLobbyStore(lobbyRedis);
 const blocklist = createBlocklist(config.redis.url, config.redis.password);
 
 const app = await buildApp(nonces, lobby, blocklist);
+
+// Optional, and off unless a database is configured. A failure to load is
+// logged and survived: geolocation is a dashboard convenience, not something a
+// meeting depends on.
+await initGeoip(config.admin.geoipDatabase, app.log);
+
+/**
+ * Media bandwidth is only visible to LiveKit, because media never reaches this
+ * process. Polled on a timer rather than on request: Prometheus counters are
+ * cumulative, so a throughput figure needs two readings a known interval apart,
+ * and the hourly history has to accumulate whether or not anyone is watching.
+ */
+const stopSfuPolling = startSfuPolling(config.admin.sfuMetricsUrl, app.log);
 
 try {
   await app.listen({ host: config.http.host, port: config.http.port });
@@ -57,6 +72,7 @@ async function shutdown(signal: string): Promise<void> {
   forceExit.unref();
 
   try {
+    stopSfuPolling();
     await app.close();
     await nonces.close();
     await lobby.close();

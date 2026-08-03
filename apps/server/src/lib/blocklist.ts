@@ -33,11 +33,28 @@ export interface BlockedEntry {
   expiresAt: number;
 }
 
+export interface StoreHealth {
+  backend: 'redis' | 'memory';
+  ok: boolean;
+  /** Round-trip time of a PING, or `null` when there is nothing to ping. */
+  latencyMs: number | null;
+  error: string | null;
+}
+
 export interface Blocklist {
   isBlocked(ip: string): Promise<boolean>;
   block(ip: string, ttlSeconds: number): Promise<void>;
   unblock(ip: string): Promise<void>;
   list(): Promise<BlockedEntry[]>;
+  /**
+   * Probes the shared store.
+   *
+   * It lives on the blocklist because this is the connection that matters most:
+   * every request checks it before doing any work, so a Redis that has gone
+   * away is felt here first. The lobby and the nonce store share the same
+   * server, so one probe answers for all three.
+   */
+  health(): Promise<StoreHealth>;
   close(): Promise<void>;
 }
 
@@ -85,6 +102,21 @@ class RedisBlocklist implements Blocklist {
     return entries;
   }
 
+  async health(): Promise<StoreHealth> {
+    const started = Date.now();
+    try {
+      await this.redis.ping();
+      return { backend: 'redis', ok: true, latencyMs: Date.now() - started, error: null };
+    } catch (error) {
+      return {
+        backend: 'redis',
+        ok: false,
+        latencyMs: null,
+        error: error instanceof Error ? error.message : 'unreachable',
+      };
+    }
+  }
+
   async close(): Promise<void> {
     await this.redis.quit();
   }
@@ -127,6 +159,13 @@ class MemoryBlocklist implements Blocklist {
       else entries.push({ ip, expiresAt });
     }
     return entries;
+  }
+
+  async health(): Promise<StoreHealth> {
+    // Nothing to probe: the store is a map in this process, so it is available
+    // exactly when the process is. Reported rather than faked as "redis ok" so
+    // the dashboard can say plainly that blocks hold on this node only.
+    return { backend: 'memory', ok: true, latencyMs: null, error: null };
   }
 
   async close(): Promise<void> {

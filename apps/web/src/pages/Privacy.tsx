@@ -111,6 +111,14 @@ export default function Privacy() {
           server restarts.
         </p>
         <p>
+          Where operators have chosen to enable it, the same counting is done by country: an
+          address is turned into a two-letter code, the address is discarded, and what remains
+          is a tally shared by everyone who connected from that country in the same hour. It
+          is used to recognise the shape of an attack, which arrives from places ordinary
+          traffic does not. Like every other counter here, it cannot be narrowed to a person,
+          a meeting, or an address.
+        </p>
+        <p>
           One exception, stated plainly: an address that is repeatedly <em>refused</em> — a
           bad meeting code tried again and again, which is what an automated probe looks like
           — is held so the operator can block it. That is the abuse handling described above,

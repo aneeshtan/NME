@@ -12,6 +12,7 @@ import { roomRoutes } from './routes/rooms.js';
 import { webhookRoutes } from './routes/webhooks.js';
 import { knockRoutes } from './routes/knocks.js';
 import { adminRoutes } from './routes/admin.js';
+import { recordHttpResponse } from './lib/metrics.js';
 import type { NonceStore } from './lib/nonceStore.js';
 import type { LobbyStore } from './lib/lobby.js';
 import type { Blocklist } from './lib/blocklist.js';
@@ -213,6 +214,20 @@ export async function buildApp(
     // 403 with no detail. Explaining the block would tell an abuser exactly
     // what to change.
     return reply.code(403).send({ error: 'FORBIDDEN', message: 'Request refused.' });
+  });
+
+  /**
+   * Response timing, for the health dashboard.
+   *
+   * Keyed on the matched route *pattern*, never the URL: a URL contains the
+   * room id, which is a hash of the encryption key and must not be retained
+   * anywhere (see lib/metrics.ts). An unmatched request has no pattern, so 404
+   * probes all collapse into a single `unmatched` key instead of one per path
+   * an attacker chooses to try.
+   */
+  app.addHook('onResponse', async (request, reply) => {
+    const route = request.routeOptions?.url ?? 'unmatched';
+    recordHttpResponse(route, reply.statusCode, reply.elapsedTime);
   });
 
   app.addHook('onRequest', async (request, reply) => {

@@ -80,6 +80,14 @@ services:
       LIVEKIT_WEBHOOK_ENABLED: 'true'
       # Empty unless set: the health endpoint is 404 while it is.
       ADMIN_TOKEN: ${ADMIN_TOKEN:-}
+      # LiveKit's Prometheus endpoint, scraped for bandwidth and media quality.
+      # Media never passes through the control plane, so these counters are the
+      # only place the real traffic figures exist.
+      LIVEKIT_METRICS_URL: http://livekit:6789/metrics
+      # Country lookup for the health dashboard, off unless GEOIP_DB_FILE names
+      # a database on the host (npm run geoip fetches one). The path inside the
+      # container is fixed; only the host side varies.
+      GEOIP_DB: ${GEOIP_DB_FILE:+/data/country.mmdb}
       MAX_PARTICIPANTS: ${MAX_PARTICIPANTS:-25}
       ROOM_EMPTY_TIMEOUT: ${ROOM_EMPTY_TIMEOUT:-30}
       ROOM_DEPARTURE_TIMEOUT: ${ROOM_DEPARTURE_TIMEOUT:-20}
@@ -100,6 +108,13 @@ services:
     read_only: true
     tmpfs:
       - /tmp:size=16m,mode=1777
+    volumes:
+      # The country database, when there is one. Compose has no way to omit a
+      # mount conditionally, so an unset GEOIP_DB_FILE mounts /dev/null instead
+      # — which is harmless, because GEOIP_DB above is then empty and the file
+      # is never opened. Read-only: the process only ever reads it, and the rest
+      # of this container's filesystem is read-only for the same reason.
+      - ${GEOIP_DB_FILE:-/dev/null}:/data/country.mmdb:ro
     depends_on:
       redis:
         condition: service_healthy

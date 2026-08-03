@@ -643,9 +643,18 @@ Beyond one machine, add SFU nodes against the same Redis — see
 **Logs** — structured JSON via pino: `docker compose -f infra/docker-compose.yml logs -f server`
 
 **Metrics** — LiveKit exposes Prometheus on `:6789` inside the compose network.
-It is deliberately not published; scrape it from a sidecar.
+It is deliberately not published; scrape it from a sidecar. The dashboard below
+reads the same endpoint for bandwidth and media quality, so a Prometheus of your
+own is additive rather than a replacement.
 
 **Health** — `/api/health`, also wired to the container `HEALTHCHECK`.
+
+**Dashboard** — `/health` in the browser, with `ADMIN_TOKEN` set; 404 while it is
+not. Bandwidth and cost, media quality, the join-success funnel, per-route
+latency, resource headroom, and the abuse signals. Optionally counts connections
+per country — off unless `GEOIP_DB` names a database, which `npm run geoip`
+will fetch. See [docs/health-dashboard.md](docs/health-dashboard.md), which also
+sets out where the privacy line sits and why countries are inside it.
 
 **Upgrades** — `docker compose ... up -d --build`. Graceful shutdown drains
 in-flight requests; people already in meetings are unaffected, because their

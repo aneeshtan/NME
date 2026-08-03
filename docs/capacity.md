@@ -92,6 +92,12 @@ Against a typical 20 TB monthly transfer allowance, that is roughly **44 hours
 at full load** before overage. For most deployments the transfer bill arrives
 long before the CPU graph gets interesting.
 
+The **Bandwidth** panel on [the health dashboard](health-dashboard.md) is the
+measured version of this arithmetic: bytes forwarded per hour, a day's total,
+and that total × 30. Compare it against the allowance rather than against these
+estimates — the figures above assume everyone is on camera, and a deployment
+where most meetings are two people talking will be nowhere near them.
+
 Order of failure, in practice:
 
 1. **Egress bandwidth** — or the monthly transfer cap, whichever bites first

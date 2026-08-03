@@ -11,6 +11,11 @@
  * for abuse handling, and the distinction that keeps this honest is that it is a
  * list of who was turned away rather than a list of who joined a meeting.
  *
+ * Countries appear as counts per country over a rolling day. That cannot be
+ * narrowed to a person, a meeting, or an address, it does not become more
+ * revealing as it accumulates, and it is switched off entirely unless the
+ * operator supplies a geolocation database.
+ *
  * The token is held in sessionStorage rather than localStorage, so closing the
  * tab discards it. An operator credential that survives on a shared machine
  * indefinitely is a worse risk than retyping it.
@@ -33,6 +38,72 @@ interface Blocked {
   expiresAt: number;
 }
 
+interface RouteSummary {
+  route: string;
+  count: number;
+  perMinute: number;
+  averageMs: number;
+  p50: number;
+  p95: number;
+  p99: number;
+  statusClasses: Record<string, number>;
+}
+
+/** LiveKit's own counters. Media never reaches this server; see lib/sfu.ts. */
+interface Sfu {
+  reachable: boolean;
+  scrapedAt: number | null;
+  error: string | null;
+  hasCounters: boolean;
+  throughput: { inMbps: number; outMbps: number; windowSeconds: number };
+  transferred: { bytesIn: number; bytesOut: number; sinceMs: number };
+  quality: {
+    packetLossPercent: number | null;
+    retransmitPercent: number | null;
+    nacksPerMinute: number;
+    plisPerMinute: number;
+    rttMs: number | null;
+    jitterMs: number | null;
+  };
+  live: {
+    rooms: number;
+    participants: number;
+    tracksPublished: Record<string, number>;
+    tracksSubscribed: Record<string, number>;
+    connections: Record<string, number>;
+    joins: Record<string, number>;
+  };
+}
+
+interface SystemStats {
+  process: {
+    rssMb: number;
+    heapUsedMb: number;
+    heapTotalMb: number;
+    externalMb: number;
+    nodeVersion: string;
+  };
+  container: {
+    memoryLimitMb: number | null;
+    memoryUsedMb: number | null;
+    memoryPercent: number | null;
+    cpuLimit: number | null;
+  };
+  host: {
+    load: [number, number, number];
+    cores: number;
+    loadPerCore: number;
+    memoryTotalMb: number;
+    memoryFreeMb: number;
+    uptimeSeconds: number;
+  };
+}
+
+/**
+ * Everything added since the first version of this page is optional, so a
+ * browser left open across a deploy renders what it has instead of throwing on
+ * a field the older server did not send.
+ */
 interface Stats {
   active: { rooms: number; participants: number };
   offenders: Offender[];
@@ -41,19 +112,49 @@ interface Stats {
   memoryMb: number;
   cpuPercent: number;
   eventLoopLagMs: number;
+  sfu?: Sfu;
+  system?: SystemStats;
+  store?: { backend: string; ok: boolean; latencyMs: number | null; error: string | null };
+  geoip?: {
+    state: 'off' | 'ready' | 'error';
+    database: string | null;
+    builtAt: number | null;
+    error: string | null;
+  };
   totals: {
     roomsCreated: number;
     tokensIssued: number;
     joinsRejected: number;
     rejectionsByReason: Record<string, number>;
+    participantsConnected?: number;
+    replayEvictions?: number;
+    webhookEvents?: Record<string, number>;
   };
   lastDay: {
     roomsCreated: number;
     tokensIssued: number;
     joinsRejected: number;
     peakParticipants: number;
+    participantsConnected?: number;
   };
-  hourly: { hour: number; roomsCreated: number; tokensIssued: number; peakParticipants: number }[];
+  hourly: {
+    hour: number;
+    roomsCreated: number;
+    tokensIssued: number;
+    peakParticipants: number;
+    bytesIn?: number;
+    bytesOut?: number;
+  }[];
+  bandwidth?: { bytesIn: number; bytesOut: number; bytesTotal: number };
+  countries?: { code: string; joined: number; refused: number }[];
+  funnel?: { tokensIssued: number; participantsConnected: number; connectRate: number | null };
+  http?: {
+    windowMinutes: number;
+    requests: number;
+    requestsPerMinute: number;
+    statusClasses: Record<string, number>;
+    routes: RouteSummary[];
+  };
   meetingLength: {
     completed: number;
     averageMinutes: number;
@@ -163,8 +264,8 @@ export default function Health() {
       title="Health"
       intro={
         <>
-          Load and abuse signals. Nothing here identifies a meeting, a room, or a person —
-          none of that is collected.
+          Load, capacity, and abuse signals. Nothing here identifies a meeting, a room, or a
+          person — none of that is collected.
         </>
       }
     >
@@ -180,17 +281,294 @@ export default function Health() {
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <Stat label="Meetings" value={stats.active.rooms} />
               <Stat label="Participants" value={stats.active.participants} />
-              <Stat label="Memory" value={`${stats.memoryMb} MB`} />
-              <Stat label="CPU" value={`${stats.cpuPercent}%`} />
+              <Stat
+                label="Media in"
+                value={stats.sfu?.reachable ? `${stats.sfu.throughput.inMbps} Mb/s` : '—'}
+              />
+              <Stat
+                label="Media out"
+                value={stats.sfu?.reachable ? `${stats.sfu.throughput.outMbps} Mb/s` : '—'}
+              />
             </div>
             <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
               <Stat label="Event loop lag" value={`${stats.eventLoopLagMs} ms`} />
+              <Stat label="CPU" value={`${stats.cpuPercent}%`} />
+              <Stat label="Memory" value={`${stats.memoryMb} MB`} />
               <Stat label="Uptime" value={formatDuration(stats.uptimeSeconds)} />
             </div>
             <p>
-              Event loop lag is the one to watch. Memory and CPU can both look fine while the
-              loop is blocked and every request is queued behind something synchronous —
-              sustained lag above roughly 100&nbsp;ms means this process is the bottleneck.
+              Event loop lag is the one to watch on this process. Memory and CPU can both look
+              fine while the loop is blocked and every request is queued behind something
+              synchronous — sustained lag above roughly 100&nbsp;ms means this process is the
+              bottleneck. The media figures are the SFU&rsquo;s rather than this server&rsquo;s,
+              because media never passes through here.
+            </p>
+          </Section>
+
+          <Section title="Bandwidth">
+            {stats.sfu && !stats.sfu.reachable ? (
+              <Unavailable
+                what="The SFU metrics endpoint"
+                detail={stats.sfu.error}
+                hint="LiveKit exposes these on :6789 inside the compose network — check prometheus_port in infra/livekit.yaml."
+              />
+            ) : (
+              <>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <Stat label="Out, last 24h" value={formatBytes(stats.bandwidth?.bytesOut ?? 0)} />
+                  <Stat label="In, last 24h" value={formatBytes(stats.bandwidth?.bytesIn ?? 0)} />
+                  <Stat label="Total" value={formatBytes(stats.bandwidth?.bytesTotal ?? 0)} />
+                  <Stat
+                    label="At this rate, a month"
+                    value={formatBytes((stats.bandwidth?.bytesTotal ?? 0) * 30)}
+                  />
+                </div>
+                <p>
+                  What the SFU forwarded, which is what a host bills for. Outbound is the number
+                  that matters: every participant receives a copy of every other
+                  participant&rsquo;s streams, so it grows with the square of meeting size while
+                  inbound grows linearly. The monthly figure is the last day &times;&nbsp;30 and
+                  assumes today was typical — it is an order of magnitude, not a forecast.
+                </p>
+                <Bars
+                  items={stats.hourly.map((bucket) => ({
+                    label: formatHour(bucket.hour),
+                    value: (bucket.bytesIn ?? 0) + (bucket.bytesOut ?? 0),
+                  }))}
+                  format={formatBytes}
+                />
+                <p className="text-[0.8125rem]">
+                  Accumulated by this process from LiveKit&rsquo;s cumulative counters, so
+                  restarting either resets the history rather than backfilling it.
+                </p>
+              </>
+            )}
+          </Section>
+
+          {stats.sfu?.reachable && (
+            <Section title="Media quality">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <Stat
+                  label="Packet loss"
+                  value={formatPercent(stats.sfu.quality.packetLossPercent)}
+                />
+                <Stat
+                  label="Retransmitted"
+                  value={formatPercent(stats.sfu.quality.retransmitPercent)}
+                />
+                <Stat label="Round trip" value={formatMs(stats.sfu.quality.rttMs)} />
+                <Stat label="Jitter" value={formatMs(stats.sfu.quality.jitterMs)} />
+              </div>
+              <p>
+                Loss above roughly 2% is where people start describing a call as choppy, and it
+                is usually the far end&rsquo;s network rather than this server. What would
+                implicate the server is loss climbing at the same time as CPU or the connection
+                count — that is the SFU running out of headroom rather than one person on bad
+                Wi-Fi.
+              </p>
+              <Rows
+                items={[
+                  { label: 'Keyframe requests', value: `${stats.sfu.quality.plisPerMinute} / min` },
+                  {
+                    label: 'Retransmit requests',
+                    value: `${stats.sfu.quality.nacksPerMinute} / min`,
+                  },
+                  { label: 'Tracks published', value: formatCounts(stats.sfu.live.tracksPublished) },
+                  {
+                    label: 'Tracks subscribed',
+                    value: formatCounts(stats.sfu.live.tracksSubscribed),
+                  },
+                  { label: 'Connections', value: formatCounts(stats.sfu.live.connections) },
+                ]}
+              />
+              <p className="text-[0.8125rem]">
+                Connections are broken down by transport. A rising share on TCP means networks
+                are blocking UDP — those calls still work, but head-of-line blocking makes them
+                measurably worse, and it is the case the relay fallback exists for.
+              </p>
+            </Section>
+          )}
+
+          <Section title="Joins that connected">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <Stat label="Tokens issued" value={stats.funnel?.tokensIssued ?? 0} />
+              <Stat label="Connected" value={stats.funnel?.participantsConnected ?? 0} />
+              <Stat label="Connect rate" value={formatPercent(stats.funnel?.connectRate ?? null)} />
+              <Stat label="Replays evicted" value={stats.totals.replayEvictions ?? 0} />
+            </div>
+            <p>
+              The one failure this server cannot otherwise see. Everything on the control plane
+              can succeed — the token is minted, the room exists — and the media connection
+              still never establishes, at which point somebody is looking at a call that will
+              not start while every other counter here says the join worked. A connect rate
+              durably below about 90% points at ICE: blocked UDP, a NAT nobody can traverse, or
+              a relay that is not configured.
+            </p>
+            <p className="text-[0.8125rem]">
+              Slight overshoot is normal rather than a fault — somebody who reconnects after a
+              network change joins twice on one token. Last 24 hours; evictions are since
+              restart.
+            </p>
+          </Section>
+
+          <Section title="Where connections come from">
+            {!stats.geoip || stats.geoip.state === 'off' ? (
+              <Unavailable
+                what="Country lookup"
+                detail="No database is configured, so no geolocation happens anywhere in this process."
+                hint="Set GEOIP_DB to an MMDB country database to switch it on. DB-IP publishes a free one that needs no account — see docs/health-dashboard.md."
+              />
+            ) : stats.geoip.state === 'error' ? (
+              <Unavailable what="The country database" detail={stats.geoip.error} hint={null} />
+            ) : (
+              <>
+                <p>
+                  Counts per country over the last 24 hours — never addresses, and never
+                  attributable to a person or a meeting. Ordinary traffic follows wherever the
+                  people using this server live. A column of refusals from somewhere that has
+                  never appeared before is the shape of an attack, and it is the thing worth
+                  acting on here.
+                </p>
+                <CountryTable rows={stats.countries ?? []} />
+                <p className="text-[0.8125rem]">
+                  {stats.geoip.database}, built{' '}
+                  {stats.geoip.builtAt ? new Date(stats.geoip.builtAt).toLocaleDateString() : '—'}.
+                  Country data drifts within months, and a stale file gets quietly less accurate
+                  rather than failing. <code className="rounded bg-elevated px-1 py-px">ZZ</code>{' '}
+                  is anything unresolved: a private address, or a range the database has no entry
+                  for.
+                </p>
+              </>
+            )}
+          </Section>
+
+          {stats.http && (
+            <Section title="API responsiveness">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <Stat label="Requests / min" value={stats.http.requestsPerMinute} />
+                <Stat label="Client errors" value={stats.http.statusClasses['4xx'] ?? 0} />
+                <Stat label="Server errors" value={stats.http.statusClasses['5xx'] ?? 0} />
+                <Stat label="Window" value={`${stats.http.windowMinutes} min`} />
+              </div>
+              <p>
+                A rolling {stats.http.windowMinutes}-minute window, so this shows what is
+                happening now rather than an average flattened across days of uptime. Any 5xx is
+                worth reading the logs over. A 4xx count climbing on{' '}
+                <code className="rounded bg-elevated px-1 py-px">/rooms/:roomId/join</code> is the
+                same signal as the rejection counters further down.
+              </p>
+              <RouteTable rows={stats.http.routes} />
+              <p className="text-[0.8125rem]">
+                Milliseconds, timed from request to response, so they include the calls this
+                server makes to LiveKit and Redis on the way. Join is slower than the rest by
+                nature: it asks the SFU for a participant count and mints a token.
+              </p>
+            </Section>
+          )}
+
+          {stats.system && (
+            <Section title="Resources">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <Stat
+                  label="Container memory"
+                  value={
+                    stats.system.container.memoryLimitMb
+                      ? `${stats.system.container.memoryUsedMb ?? 0} / ${stats.system.container.memoryLimitMb} MB`
+                      : `${stats.system.process.rssMb} MB`
+                  }
+                />
+                <Stat label="Heap" value={`${stats.system.process.heapUsedMb} MB`} />
+                <Stat label="Host load" value={stats.system.host.load[0]} />
+                <Stat label="Cores" value={stats.system.host.cores} />
+              </div>
+              {stats.system.container.memoryPercent !== null && (
+                <Meter
+                  label="Toward the container limit"
+                  percent={stats.system.container.memoryPercent}
+                />
+              )}
+              <p>
+                The container limit is the one that bites. Exceeding it does not degrade
+                anything — Docker kills the process outright, and the same is true of the far
+                larger limit on the SFU container, where it would drop every meeting on the host
+                at once. Both are values in{' '}
+                <code className="rounded bg-elevated px-1 py-px">infra/docker-compose.yml</code>,
+                not limits of the software.
+              </p>
+              <Rows
+                items={[
+                  {
+                    label: 'Heap',
+                    value: `${stats.system.process.heapUsedMb} of ${stats.system.process.heapTotalMb} MB, RSS ${stats.system.process.rssMb} MB`,
+                  },
+                  {
+                    label: 'CPU allowance',
+                    value: stats.system.container.cpuLimit
+                      ? `${stats.system.container.cpuLimit} of ${stats.system.host.cores} cores`
+                      : `unlimited, ${stats.system.host.cores} cores`,
+                  },
+                  {
+                    label: 'Host load average',
+                    value: `${stats.system.host.load.join(' · ')} (${stats.system.host.loadPerCore} per core)`,
+                  },
+                  {
+                    label: 'Host memory free',
+                    value: `${formatMb(stats.system.host.memoryFreeMb)} of ${formatMb(stats.system.host.memoryTotalMb)}`,
+                  },
+                  { label: 'Host uptime', value: formatDuration(stats.system.host.uptimeSeconds) },
+                  { label: 'Node', value: `v${stats.system.process.nodeVersion}` },
+                ]}
+              />
+              <p className="text-[0.8125rem]">
+                Host figures cover the whole machine, including the SFU. Load per core above 1
+                sustained means the box is oversubscribed, and on this stack that is nearly
+                always LiveKit rather than anything else on this page.
+              </p>
+            </Section>
+          )}
+
+          <Section title="Dependencies">
+            <Rows
+              items={[
+                {
+                  label: 'Shared state',
+                  value: stats.store
+                    ? stats.store.backend === 'memory'
+                      ? 'in-process — single node, blocks hold here only'
+                      : stats.store.ok
+                        ? `Redis, ${stats.store.latencyMs} ms`
+                        : `Redis unreachable — ${stats.store.error ?? 'no detail'}`
+                    : '—',
+                },
+                {
+                  label: 'SFU metrics',
+                  value: stats.sfu
+                    ? stats.sfu.reachable
+                      ? `scraped ${formatAgo(stats.sfu.scrapedAt)}`
+                      : `unreachable — ${stats.sfu.error ?? 'no detail'}`
+                    : '—',
+                },
+                {
+                  label: 'Country database',
+                  value:
+                    stats.geoip?.state === 'ready'
+                      ? (stats.geoip.database ?? 'loaded')
+                      : stats.geoip?.state === 'error'
+                        ? `failed — ${stats.geoip.error ?? 'no detail'}`
+                        : 'off',
+                },
+                {
+                  label: 'Webhook deliveries',
+                  value: formatCounts(stats.totals.webhookEvents ?? {}) || 'none yet',
+                },
+              ]}
+            />
+            <p>
+              Redis unreachable is survivable rather than fatal: the rate limiter fails open, the
+              blocklist falls back to this process, and meetings keep working — but a block
+              applied on one replica stops holding on the others. Webhook deliveries at zero
+              while meetings are running means LiveKit cannot reach this server, which silently
+              disables both replay eviction and the connected count above.
             </p>
           </Section>
 
@@ -304,9 +682,7 @@ export default function Health() {
           <Section title="Meetings per hour">
             <Bars
               items={stats.hourly.map((bucket) => ({
-                label: new Date(bucket.hour * 3_600_000).toLocaleTimeString([], {
-                  hour: '2-digit',
-                }),
+                label: formatHour(bucket.hour),
                 value: bucket.roomsCreated,
               }))}
             />
@@ -338,12 +714,153 @@ function Stat({ label, value }: { label: string; value: string | number }) {
   );
 }
 
+/** Label and value on one line. For facts that are read rather than compared. */
+function Rows({ items }: { items: { label: string; value: string | number }[] }) {
+  return (
+    <ul className="space-y-1">
+      {items.map((item) => (
+        <li key={item.label} className="flex flex-wrap justify-between gap-x-4 gap-y-0.5">
+          <span className="text-[0.8125rem]">{item.label}</span>
+          <span className="text-[0.8125rem] font-medium tabular-nums text-fg">{item.value}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * A panel that has nothing to show, and why.
+ *
+ * Distinct from a zero on purpose. "Nothing, because this is switched off" and
+ * "nothing, because nothing happened" lead to entirely different actions, and a
+ * dashboard that renders both as 0 has misled whoever is reading it.
+ */
+function Unavailable({
+  what,
+  detail,
+  hint,
+}: {
+  what: string;
+  detail: string | null;
+  hint: string | null;
+}) {
+  return (
+    <div className="rounded-xl border border-border bg-surface p-4">
+      <p className="text-[0.9375rem] text-fg">{what} is not available.</p>
+      {detail && <p className="mt-1 text-[0.8125rem] text-muted">{detail}</p>}
+      {hint && <p className="mt-2 text-[0.8125rem] text-muted">{hint}</p>}
+    </div>
+  );
+}
+
+/** A single proportion, where the proportion is the whole point. */
+function Meter({ label, percent }: { label: string; percent: number }) {
+  const clamped = Math.max(0, Math.min(100, percent));
+  // Red past 85%: close enough to the limit that the next spike is the one that
+  // gets the process killed.
+  const tone = clamped >= 85 ? 'bg-danger' : 'bg-accent';
+
+  return (
+    <div>
+      <div className="flex justify-between text-[0.8125rem]">
+        <span>{label}</span>
+        <span className="font-medium tabular-nums text-fg">{percent}%</span>
+      </div>
+      <span className="mt-1.5 block h-2 overflow-hidden rounded-full bg-surface">
+        <span className={`block h-full rounded-full ${tone}`} style={{ width: `${clamped}%` }} />
+      </span>
+    </div>
+  );
+}
+
+/** Joins and refusals on one bar, because the ratio is the signal. */
+function CountryTable({ rows }: { rows: { code: string; joined: number; refused: number }[] }) {
+  if (rows.length === 0) return <p className="text-muted">Nothing yet.</p>;
+
+  const max = Math.max(1, ...rows.map((row) => row.joined + row.refused));
+
+  return (
+    <div className="space-y-1.5">
+      {rows.map((row) => (
+        <div key={row.code} className="flex items-center gap-3 text-[0.8125rem]">
+          <span className="w-32 shrink-0 truncate" title={countryName(row.code)}>
+            {countryName(row.code)}
+          </span>
+          <span className="flex h-2 flex-1 overflow-hidden rounded-full bg-surface">
+            <span
+              className="block h-full bg-accent"
+              style={{ width: `${(row.joined / max) * 100}%` }}
+            />
+            <span
+              className="block h-full bg-danger"
+              style={{ width: `${(row.refused / max) * 100}%` }}
+            />
+          </span>
+          <span className="w-20 shrink-0 text-right tabular-nums">
+            <span className="font-medium text-fg">{row.joined}</span>
+            {row.refused > 0 && <span className="text-danger"> +{row.refused}</span>}
+          </span>
+        </div>
+      ))}
+      <p className="pt-1 text-xs text-muted">Joins in accent, refusals in red.</p>
+    </div>
+  );
+}
+
+function RouteTable({ rows }: { rows: RouteSummary[] }) {
+  if (rows.length === 0) return <p className="text-muted">No requests in the window.</p>;
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-left text-[0.8125rem] tabular-nums">
+        <thead className="text-xs text-muted">
+          <tr>
+            <th className="py-1 pr-3 font-medium">Route</th>
+            <th className="py-1 pr-3 text-right font-medium">/min</th>
+            <th className="py-1 pr-3 text-right font-medium">p50</th>
+            <th className="py-1 pr-3 text-right font-medium">p95</th>
+            <th className="py-1 pr-3 text-right font-medium">p99</th>
+            <th className="py-1 text-right font-medium">Errors</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => {
+            const errors = (row.statusClasses['4xx'] ?? 0) + (row.statusClasses['5xx'] ?? 0);
+            return (
+              <tr key={row.route} className="border-t border-border">
+                <td className="py-1.5 pr-3 font-mono text-xs break-all">{row.route}</td>
+                <td className="py-1.5 pr-3 text-right">{row.perMinute}</td>
+                <td className="py-1.5 pr-3 text-right">{row.p50}</td>
+                <td className="py-1.5 pr-3 text-right">{row.p95}</td>
+                <td className="py-1.5 pr-3 text-right text-fg">{row.p99}</td>
+                <td
+                  className={`py-1.5 text-right ${
+                    (row.statusClasses['5xx'] ?? 0) > 0 ? 'text-danger' : ''
+                  }`}
+                >
+                  {errors}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 /**
  * Horizontal bars rather than a chart library. Everything here is a small set
  * of non-negative counts, which a div with a width expresses exactly as well as
  * a canvas would and without the dependency.
  */
-function Bars({ items }: { items: { label: string; value: number }[] }) {
+function Bars({
+  items,
+  format,
+}: {
+  items: { label: string; value: number }[];
+  format?: (value: number) => string;
+}) {
   const max = Math.max(1, ...items.map((item) => item.value));
 
   if (items.length === 0) return <p className="text-muted">No data yet.</p>;
@@ -359,8 +876,8 @@ function Bars({ items }: { items: { label: string; value: number }[] }) {
               style={{ width: `${(item.value / max) * 100}%` }}
             />
           </span>
-          <span className="w-10 shrink-0 text-right font-medium text-fg tabular-nums">
-            {item.value}
+          <span className="w-16 shrink-0 text-right font-medium text-fg tabular-nums">
+            {format ? format(item.value) : item.value}
           </span>
         </div>
       ))}
@@ -372,4 +889,74 @@ function formatDuration(seconds: number): string {
   if (seconds < 3600) return `${Math.round(seconds / 60)}m`;
   if (seconds < 86_400) return `${Math.round(seconds / 3600)}h`;
   return `${Math.round(seconds / 86_400)}d`;
+}
+
+function formatHour(hour: number): string {
+  return new Date(hour * 3_600_000).toLocaleTimeString([], { hour: '2-digit' });
+}
+
+/**
+ * Bytes in the units a host bills in — powers of 1000, not 1024. A provider
+ * quoting "2 TB of transfer" means 2,000,000,000,000 bytes, and showing GiB
+ * against that would put this dashboard in disagreement with the invoice.
+ */
+function formatBytes(bytes: number): string {
+  if (bytes < 1000) return `${Math.round(bytes)} B`;
+
+  const units = ['kB', 'MB', 'GB', 'TB', 'PB'];
+  let value = bytes / 1000;
+  let unit = 0;
+
+  while (value >= 1000 && unit < units.length - 1) {
+    value /= 1000;
+    unit += 1;
+  }
+
+  return `${value >= 100 ? Math.round(value) : Math.round(value * 10) / 10} ${units[unit]}`;
+}
+
+function formatMb(megabytes: number): string {
+  return megabytes >= 1024 ? `${Math.round((megabytes / 1024) * 10) / 10} GB` : `${megabytes} MB`;
+}
+
+function formatPercent(value: number | null): string {
+  return value === null ? '—' : `${value}%`;
+}
+
+function formatMs(value: number | null): string {
+  return value === null ? '—' : `${value} ms`;
+}
+
+/** `{audio: 3, video: 2}` as `audio 3 · video 2`. */
+function formatCounts(counts: Record<string, number>): string {
+  return Object.entries(counts)
+    .filter(([, count]) => count > 0)
+    .map(([key, count]) => `${key} ${count}`)
+    .join(' · ');
+}
+
+function formatAgo(at: number | null): string {
+  if (!at) return 'never';
+  const seconds = Math.max(0, Math.round((Date.now() - at) / 1000));
+  return seconds < 60 ? `${seconds}s ago` : `${Math.round(seconds / 60)}m ago`;
+}
+
+/**
+ * The country's name, falling back to its code.
+ *
+ * `Intl.DisplayNames` is in every browser this app supports, and it saves
+ * shipping a table of 250 names that would then need maintaining.
+ */
+const regionNames =
+  typeof Intl !== 'undefined' && 'DisplayNames' in Intl
+    ? new Intl.DisplayNames(['en'], { type: 'region' })
+    : null;
+
+function countryName(code: string): string {
+  if (code === 'ZZ') return 'Unresolved';
+  try {
+    return regionNames?.of(code) ?? code;
+  } catch {
+    return code;
+  }
 }

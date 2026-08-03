@@ -11,7 +11,12 @@ import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import { WebhookReceiver } from 'livekit-server-sdk';
 import { config } from '../config.js';
 import { evictParticipant } from '../lib/livekit.js';
-import { recordMeetingDuration } from '../lib/metrics.js';
+import {
+  recordMeetingDuration,
+  recordParticipantConnected,
+  recordReplayEviction,
+  recordWebhookEvent,
+} from '../lib/metrics.js';
 import type { NonceStore } from '../lib/nonceStore.js';
 
 interface Options {
@@ -52,12 +57,28 @@ export const webhookRoutes: FastifyPluginAsync<Options> = async (
         return reply.code(401).send({ error: 'UNAUTHORIZED' });
       }
 
+      // The event name only; LiveKit's vocabulary is fixed, and nothing about
+      // which room or participant it concerned is kept.
+      recordWebhookEvent(event.event);
+
       if (event.event === 'participant_joined' && event.participant && event.room) {
         const identity = event.participant.identity;
         const roomId = event.room.name;
         const fresh = await nonces.consume(identity);
 
+        /**
+         * The far end of the join funnel.
+         *
+         * Counted here rather than where the token is issued because this is
+         * the only point at which media is known to have established. A token
+         * that never becomes one of these is a participant who failed to
+         * connect — invisible everywhere else, since the control plane's own
+         * work succeeded.
+         */
+        recordParticipantConnected();
+
         if (!fresh) {
+          recordReplayEviction();
           // The nonce was already burned (or expired): this token has been used
           // before. Evict rather than trust — the legitimate holder can rejoin
           // with a freshly issued token in under a second.

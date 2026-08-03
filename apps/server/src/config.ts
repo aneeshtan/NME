@@ -105,6 +105,26 @@ export const config = Object.freeze({
    */
   admin: Object.freeze({
     token: optional('ADMIN_TOKEN', ''),
+
+    /**
+     * LiveKit's Prometheus endpoint, scraped for bandwidth and media quality.
+     *
+     * Media never passes through this process, so these counters are the only
+     * place the real traffic figures exist. Reachable only inside the compose
+     * network — see `prometheus_port` in infra/livekit.yaml. Set empty to
+     * disable the scrape entirely.
+     */
+    sfuMetricsUrl: optional('LIVEKIT_METRICS_URL', 'http://livekit:6789/metrics'),
+
+    /**
+     * Path to an MMDB country database, mounted read-only.
+     *
+     * Off unless set, and deliberately not bundled: shipping a geolocation
+     * database would mean every deployment does geolocation whether its
+     * operator chose to or not. See docs/health-dashboard.md for where to get
+     * one — DB-IP's free file needs no account.
+     */
+    geoipDatabase: optional('GEOIP_DB', ''),
   }),
 
   media: Object.freeze({

@@ -14,6 +14,9 @@ import { timingSafeEqual } from 'node:crypto';
 import { config } from '../config.js';
 import { listOffenders, snapshot } from '../lib/metrics.js';
 import { countActive } from '../lib/livekit.js';
+import { sfuSnapshot } from '../lib/sfu.js';
+import { systemSnapshot } from '../lib/system.js';
+import { geoipStatus } from '../lib/geoip.js';
 import type { Blocklist } from '../lib/blocklist.js';
 
 /**
@@ -80,12 +83,30 @@ export const adminRoutes: FastifyPluginAsync<Options> = async (app, { blocklist 
         return reply.code(404).send({ error: 'NOT_FOUND', message: 'Not found.' });
       }
 
-      const [active, blocked] = await Promise.all([countActive(), blocklist.list()]);
+      /**
+       * Every source in parallel. Three of the four reach outside this process
+       * — LiveKit, Redis, and the cgroup files — and serialising them would put
+       * the slowest one's latency on top of the others for no reason.
+       *
+       * The SFU media figures are the exception: they come from a scrape loop
+       * running on its own timer, because a rate needs two readings and cannot
+       * be produced by a single request. See lib/sfu.ts.
+       */
+      const [active, blocked, store, system] = await Promise.all([
+        countActive(),
+        blocklist.list(),
+        blocklist.health(),
+        systemSnapshot(),
+      ]);
 
       return reply.send({
         active,
         blocked,
         offenders: listOffenders(),
+        sfu: sfuSnapshot(),
+        system,
+        store,
+        geoip: geoipStatus(),
         ...snapshot(),
       });
     },

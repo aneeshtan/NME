@@ -10,11 +10,13 @@
 import type { FastifyInstance, FastifyPluginAsync } from 'fastify';
 import { config } from '../config.js';
 import {
+  recordCountry,
   recordJoinRejected,
   recordParticipantCount,
   recordRoomCreated,
   recordTokenIssued,
 } from '../lib/metrics.js';
+import { lookupCountry } from '../lib/geoip.js';
 import { createRoomId, isValidRoomId } from '../lib/ids.js';
 import { normalizeDisplayName, DISPLAY_NAME_MAX_LENGTH } from '../lib/displayName.js';
 import { countParticipants, ensureRoom, issueJoinToken } from '../lib/livekit.js';
@@ -32,6 +34,18 @@ import {
 interface Options {
   nonces: NonceStore;
   lobby: LobbyStore;
+}
+
+/**
+ * A refused join, counted twice: once by reason, once by country.
+ *
+ * The address is used for both and kept by neither — `recordCountry` receives a
+ * two-letter code, and the offender list keeps the address only above a
+ * threshold of repeated refusals, which is what makes blocking possible.
+ */
+function refuse(reason: string, ip: string): void {
+  recordJoinRejected(reason, ip);
+  recordCountry(lookupCountry(ip), 'refused');
 }
 
 const roomIdParams = {
@@ -192,13 +206,13 @@ export const roomRoutes: FastifyPluginAsync<Options> = async (app: FastifyInstan
       const { displayName, relay } = request.body as { displayName: string; relay?: boolean };
 
       if (!isValidRoomId(roomId)) {
-        recordJoinRejected('bad_room_id', request.ip);
+        refuse('bad_room_id', request.ip);
         return reply.code(404).send({ error: 'NOT_FOUND', message: 'Meeting not found.' });
       }
 
       const name = normalizeDisplayName(displayName);
       if (name === null) {
-        recordJoinRejected('bad_name', request.ip);
+        refuse('bad_name', request.ip);
         return reply.code(400).send({
           error: 'INVALID_NAME',
           message: 'Please enter a name using ordinary characters.',
@@ -210,7 +224,7 @@ export const roomRoutes: FastifyPluginAsync<Options> = async (app: FastifyInstan
       const occupants = await countParticipants(roomId);
       recordParticipantCount(occupants);
       if (occupants >= config.room.maxParticipants) {
-        recordJoinRejected('room_full', request.ip);
+        refuse('room_full', request.ip);
         return reply.code(409).send({
           error: 'ROOM_FULL',
           message: 'This meeting is full.',
@@ -247,6 +261,7 @@ export const roomRoutes: FastifyPluginAsync<Options> = async (app: FastifyInstan
       }
 
       recordTokenIssued();
+      recordCountry(lookupCountry(request.ip), 'joined');
       const issued = await issueJoinToken(roomId, name);
       await nonces.register(issued.identity, config.room.tokenTtlSeconds);
 

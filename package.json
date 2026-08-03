@@ -1,6 +1,6 @@
 {
   "name": "nme",
-  "version": "1.4.1",
+  "version": "1.5.0",
   "private": true,
   "type": "module",
   "description": "Minimal, fast, end-to-end encrypted group video meetings.",
@@ -21,11 +21,17 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "keys": "node scripts/gen-keys.mjs",
+    "geoip": "node scripts/geoip.mjs",
     "dev:mobile": "npm run start -w @nme/mobile"
   },
   "overrides": {
     "brace-expansion": "^5.0.8",
     "minimatch": "^10.1.1",
     "uuid": "^14.0.1"
+  },
+  "dependencies": {
+    "expo": "~57.0.7",
+    "react": "19.2.3",
+    "react-native": "0.86.0"
   }
 }
