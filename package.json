@@ -21,7 +21,10 @@
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "keys": "node scripts/gen-keys.mjs",
-    "dev:mobile": "npm run start -w @nme/mobile"
+    "dev:mobile": "npm run start -w @nme/mobile",
+    "ios:generate": "xcodegen generate --spec apps/ios/project.yml",
+    "ios:build": "xcodebuild build -project apps/ios/NME.xcodeproj -scheme NME -destination 'generic/platform=iOS Simulator' -derivedDataPath /tmp/NMEDerivedData -clonedSourcePackagesDirPath /tmp/NMEPackages CODE_SIGNING_ALLOWED=NO -quiet",
+    "ios:test": "xcodebuild test -project apps/ios/NME.xcodeproj -scheme NME -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=latest' -derivedDataPath /tmp/NMEDerivedData -clonedSourcePackagesDirPath /tmp/NMEPackages CODE_SIGNING_ALLOWED=NO -parallel-testing-enabled NO -quiet"
   },
   "overrides": {
     "brace-expansion": "^5.0.8",

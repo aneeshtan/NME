@@ -26,6 +26,7 @@ final class NMEUITests: XCTestCase {
         app.buttons["cancelPreJoin"].tap()
         XCTAssertTrue(app.staticTexts["productName"].waitForExistence(timeout: 5))
 
+        XCTAssertTrue(field.waitForExistence(timeout: 5))
         field.tap()
         field.typeText("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8")
         app.buttons["joinPastedMeeting"].tap()
@@ -50,6 +51,11 @@ final class NMEUITests: XCTestCase {
         XCTAssertTrue(app.buttons["microphoneToggle"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["meetingCameraToggle"].exists)
         XCTAssertTrue(app.buttons["openChat"].exists)
+        XCTAssertTrue(app.buttons["Admit Jordan"].exists)
+        XCTAssertTrue(app.buttons["Deny Jordan"].exists)
+
+        app.buttons["Admit Jordan"].tap()
+        waitForDisappearance(of: app.buttons["Admit Jordan"])
 
         app.buttons["openChat"].tap()
         XCTAssertTrue(app.textFields["chatComposer"].waitForExistence(timeout: 5))
@@ -57,5 +63,13 @@ final class NMEUITests: XCTestCase {
 
         app.buttons["leaveMeeting"].tap()
         XCTAssertTrue(app.staticTexts["productName"].waitForExistence(timeout: 5))
+    }
+
+    private func waitForDisappearance(of element: XCUIElement, timeout: TimeInterval = 5) {
+        let disappeared = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "exists == false"),
+            object: element
+        )
+        XCTAssertEqual(XCTWaiter().wait(for: [disappeared], timeout: timeout), .completed)
     }
 }

@@ -5,7 +5,7 @@ final class LiveKitMeetingEngine: NSObject, MeetingEngine, RoomDelegate, @unchec
     @MainActor private var eventHandler: (@MainActor @Sendable (MeetingEngineEvent) -> Void)?
     @MainActor private var activeRoom: Room?
     @MainActor private var videoTracks: [String: VideoTrack] = [:]
-    @MainActor private var blockedIdentities: Set<String> = []
+    @MainActor private var accessPolicy = ParticipantAccessPolicy()
     @MainActor private var localFallbackIdentity = "local"
     @MainActor private let audioLifecycle: AudioLifecycle
 
@@ -26,6 +26,13 @@ final class LiveKitMeetingEngine: NSObject, MeetingEngine, RoomDelegate, @unchec
     func connect(_ request: MeetingConnectionRequest) async throws {
         await tearDownActiveRoom()
 
+        let signalingURL: URL
+        do {
+            signalingURL = try request.credentials.validatedSignalingURL()
+        } catch {
+            throw MeetingEngineError.connection
+        }
+
         let roomOptions = MediaEncryptionConfiguration.makeRoomOptions(
             identity: request.roomIdentity,
             videoCodec: request.configuration.videoCodec
@@ -36,7 +43,7 @@ final class LiveKitMeetingEngine: NSObject, MeetingEngine, RoomDelegate, @unchec
             roomOptions: roomOptions
         )
         localFallbackIdentity = request.credentials.identity
-        blockedIdentities.removeAll()
+        accessPolicy = ParticipantAccessPolicy()
         activeRoom = room
         audioLifecycle.start { [weak self] event in
             guard event == .mediaServicesReset else { return }
@@ -45,7 +52,7 @@ final class LiveKitMeetingEngine: NSObject, MeetingEngine, RoomDelegate, @unchec
 
         do {
             try await room.connect(
-                url: request.credentials.url,
+                url: signalingURL.absoluteString,
                 token: request.credentials.token
             )
         } catch {
@@ -140,7 +147,7 @@ final class LiveKitMeetingEngine: NSObject, MeetingEngine, RoomDelegate, @unchec
         do {
             try await room.localParticipant.publish(
                 data: data,
-                options: DataPublishOptions(topic: "nme-chat", reliable: true)
+                options: LiveKitWireContract.chatPublishOptions
             )
         } catch {
             throw MeetingEngineError.connection
@@ -155,7 +162,7 @@ final class LiveKitMeetingEngine: NSObject, MeetingEngine, RoomDelegate, @unchec
               })
         else { return }
 
-        blockedIdentities.insert(identity)
+        accessPolicy.block(identity)
         for publication in participant.trackPublications.values {
             guard let remotePublication = publication as? RemoteTrackPublication else { continue }
             try? await remotePublication.set(subscribed: false)
@@ -173,7 +180,7 @@ final class LiveKitMeetingEngine: NSObject, MeetingEngine, RoomDelegate, @unchec
         guard let room = activeRoom else {
             audioLifecycle.stop()
             videoTracks.removeAll()
-            blockedIdentities.removeAll()
+            accessPolicy = ParticipantAccessPolicy()
             return
         }
         await tearDown(room)
@@ -187,7 +194,7 @@ final class LiveKitMeetingEngine: NSObject, MeetingEngine, RoomDelegate, @unchec
         room.remove(delegate: self)
         audioLifecycle.stop()
         videoTracks.removeAll()
-        blockedIdentities.removeAll()
+        accessPolicy = ParticipantAccessPolicy()
         await room.disconnect()
     }
 
@@ -199,7 +206,7 @@ final class LiveKitMeetingEngine: NSObject, MeetingEngine, RoomDelegate, @unchec
         var snapshots = [snapshot(for: room.localParticipant, isLocal: true)]
         snapshots.append(contentsOf: room.remoteParticipants.values.compactMap {
             guard let identity = $0.identity?.stringValue,
-                  !blockedIdentities.contains(identity)
+                  accessPolicy.acceptsData(from: identity)
             else { return nil }
             return snapshot(for: $0, isLocal: false)
         })
@@ -380,9 +387,14 @@ final class LiveKitMeetingEngine: NSObject, MeetingEngine, RoomDelegate, @unchec
         forTopic topic: String,
         encryptionType _: EncryptionType
     ) {
-        guard topic == "nme-chat" else { return }
+        guard LiveKitWireContract.acceptsChat(topic: topic) else { return }
         Task { @MainActor [weak self] in
-            self?.handleRoomEvent(
+            guard let self else { return }
+            if let identity = participant?.identity?.stringValue,
+               !accessPolicy.acceptsData(from: identity) {
+                return
+            }
+            handleRoomEvent(
                 from: room,
                 .data(data, senderIdentity: participant?.identity?.stringValue)
             )

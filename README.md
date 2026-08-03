@@ -666,7 +666,7 @@ packages/
       messaging.ts         Encrypted data-channel envelope
       deeplink.ts          Link -> room key, for the native clients
       api.ts               Typed control-plane client
-    (55 tests)
+    (59 tests)
 apps/
   server/                  Fastify control plane
     src/
@@ -678,7 +678,7 @@ apps/
         livekit.ts         Room creation and scoped token minting
         nonceStore.ts      Replay nonces (Redis or bounded in-memory)
       routes/              rooms, webhooks, health/config
-    test/                  31 tests
+    test/                  54 tests
   web/                     React + Vite SPA
     src/
       lib/
@@ -689,8 +689,13 @@ apps/
         connect.ts         LiveKit setup, E2EE, media tuning
         useRoom.ts         Room lifecycle hook
       pages/               Home, Meeting (lazy)
-  mobile/                  Expo + React Native, iOS and Android
-    app.config.ts          Permissions, deep links, export declaration
+  ios/                     Native SwiftUI iPhone and iPad app
+    project.yml            XcodeGen source of project settings
+    NME/                   App, crypto, API, LiveKit, and SwiftUI features
+    NMETests/              Native unit and integration tests
+    NMEUITests/            Native simulator UI flows
+  mobile/                  Expo + React Native Android client
+    app.config.ts          Android permissions and deep links
     src/
       polyfills.ts         WebRTC and WebCrypto globals
       room/connect.ts      LiveKit setup with the native frame cryptor

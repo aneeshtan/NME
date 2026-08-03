@@ -30,6 +30,8 @@ final class MeetingViewModel: ObservableObject {
     @Published private(set) var controlIssue: MeetingControlIssue?
     @Published private var blockedIdentities: Set<String> = []
     @Published private var controlsInFlight: Set<Control> = []
+    @Published private var lobbyActionsInFlight: Set<String> = []
+    private var hasLeft = false
 
     let identity: RoomIdentity
     let displayName: String
@@ -38,6 +40,7 @@ final class MeetingViewModel: ObservableObject {
 
     private let cipher: MessageCipher
     private let nowMilliseconds: @MainActor () -> Int64
+    private let lobbyClock: MeetingClock
     private var subscriptions = Set<AnyCancellable>()
     private var hasStarted = false
 
@@ -46,6 +49,7 @@ final class MeetingViewModel: ObservableObject {
         displayName: String,
         initialCameraEnabled: Bool,
         session: any MeetingSessionProtocol,
+        lobbyClock: MeetingClock = .live,
         nowMilliseconds: @escaping @MainActor () -> Int64 = {
             Int64(Date().timeIntervalSince1970 * 1_000)
         }
@@ -54,6 +58,7 @@ final class MeetingViewModel: ObservableObject {
         self.displayName = displayName
         self.initialCameraEnabled = initialCameraEnabled
         self.session = session
+        self.lobbyClock = lobbyClock
         self.nowMilliseconds = nowMilliseconds
         cipher = MessageCipher(roomKey: identity.rawKey)
 
@@ -70,6 +75,7 @@ final class MeetingViewModel: ObservableObject {
     var state: MeetingState { session.state }
     var microphoneEnabled: Bool { session.microphoneEnabled }
     var cameraEnabled: Bool { session.cameraEnabled }
+    var pendingKnocks: [PendingKnock] { session.pendingKnocks }
     var isMicrophoneBusy: Bool { controlsInFlight.contains(.microphone) }
     var isCameraBusy: Bool { controlsInFlight.contains(.camera) }
     var isFlipBusy: Bool { controlsInFlight.contains(.flip) }
@@ -130,6 +136,34 @@ final class MeetingViewModel: ObservableObject {
             displayName: displayName,
             cameraEnabled: initialCameraEnabled
         )
+    }
+
+    func pollLobby() async {
+        while canPollLobby, !Task.isCancelled {
+            try? await session.refreshPendingKnocks()
+            do {
+                try await lobbyClock.sleep(for: .seconds(2))
+            } catch {
+                return
+            }
+        }
+    }
+
+    func isLobbyActionBusy(id: String) -> Bool {
+        lobbyActionsInFlight.contains(id)
+    }
+
+    func resolveLobbyRequest(id: String, admit: Bool) async {
+        guard !lobbyActionsInFlight.contains(id) else { return }
+        lobbyActionsInFlight.insert(id)
+        defer { lobbyActionsInFlight.remove(id) }
+        do {
+            try await session.resolveKnock(id: id, admit: admit)
+        } catch {
+            controlIssue = MeetingControlIssue(
+                message: "The lobby request could not be updated. It may have expired."
+            )
+        }
     }
 
     func shouldMirror(participantIdentity: String) -> Bool {
@@ -222,6 +256,8 @@ final class MeetingViewModel: ObservableObject {
     }
 
     func leave() async {
+        guard !hasLeft else { return }
+        hasLeft = true
         session.setDataHandler(nil)
         await session.leave()
         messages.removeAll()
@@ -237,6 +273,13 @@ final class MeetingViewModel: ObservableObject {
         } ?? "Participant"
         append(message, senderName: senderName, isLocal: false)
         if !isChatPresented { unreadCount += 1 }
+    }
+
+    private var canPollLobby: Bool {
+        switch state {
+        case .connected, .reconnecting: true
+        default: false
+        }
     }
 
     private func append(_ message: ChatMessage, senderName: String, isLocal: Bool) {

@@ -25,6 +25,23 @@ struct JoinCredentials: Codable, Equatable, Sendable {
     let iceServers: [IceServerConfiguration]?
 }
 
+enum SignalingURLValidationError: Error, Equatable, Sendable {
+    case insecureOrInvalid
+}
+
+extension JoinCredentials {
+    func validatedSignalingURL() throws -> URL {
+        guard let components = URLComponents(string: url),
+              components.scheme == "wss",
+              let host = components.host, !host.isEmpty,
+              let resolved = components.url
+        else {
+            throw SignalingURLValidationError.insecureOrInvalid
+        }
+        return resolved
+    }
+}
+
 enum JoinResult: Equatable, Sendable {
     case waiting(knockID: String)
     case credentials(JoinCredentials)

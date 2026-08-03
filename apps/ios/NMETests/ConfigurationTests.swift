@@ -80,6 +80,25 @@ final class ConfigurationTests: XCTestCase {
         XCTAssertTrue(project.contains("ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon"))
     }
 
+    func testBuiltAppIncludesUserDefaultsPrivacyManifestWithoutTracking() throws {
+        let manifestURL = try XCTUnwrap(
+            Bundle.main.url(forResource: "PrivacyInfo", withExtension: "xcprivacy")
+        )
+        let manifest = try propertyList(at: manifestURL)
+
+        XCTAssertEqual(manifest["NSPrivacyTracking"] as? Bool, false)
+        XCTAssertTrue(
+            (manifest["NSPrivacyCollectedDataTypes"] as? [[String: Any]])?.isEmpty == true
+        )
+        let accessed = try XCTUnwrap(
+            manifest["NSPrivacyAccessedAPITypes"] as? [[String: Any]]
+        )
+        let userDefaults = try XCTUnwrap(accessed.first(where: {
+            $0["NSPrivacyAccessedAPIType"] as? String == "NSPrivacyAccessedAPICategoryUserDefaults"
+        }))
+        XCTAssertEqual(userDefaults["NSPrivacyAccessedAPITypeReasons"] as? [String], ["CA92.1"])
+    }
+
     private func bundledResource(_ name: String, extension: String? = nil) throws -> URL {
         let fileName = `extension`.map { "\(name).\($0)" } ?? name
         let URL = Bundle(for: ConfigurationTests.self).bundleURL.appendingPathComponent(fileName)
@@ -96,5 +115,4 @@ final class ConfigurationTests: XCTestCase {
             PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any]
         )
     }
-
 }

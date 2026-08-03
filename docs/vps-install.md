@@ -298,18 +298,20 @@ docker compose -f infra/docker-compose.yml logs -f caddy server livekit
 
 ## 11. Before the mobile builds
 
-Two placeholders in `apps/web/public/.well-known/` must be filled in or
-Universal Links and App Links fail verification. Meetings still work; links just
-open in the browser.
+The association files in `apps/web/public/.well-known/` must match the shipping
+apps or Universal Links and App Links fail verification. Meetings still work;
+links just open in the browser.
 
-- `apple-app-site-association` → replace `REPLACE_WITH_TEAM_ID` with your Apple
-  Developer Team ID, giving `TEAMID.com.nmetalk.app`
+- `apple-app-site-association` is configured for the native iOS identifier
+  `WC955H63L3.com.ctrlaltl.nme`; deploy the current web build because the live
+  endpoint may still have the former placeholder
 - `assetlinks.json` → replace `REPLACE_WITH_SIGNING_CERT_SHA256` with the SHA-256
   fingerprint of the signing certificate
 
 Both are served from the app domain, so they redeploy with the web build. See
 [app-links.md](app-links.md) and [store-submission.md](store-submission.md).
 
-The app identifiers are now `com.nmetalk.app` on both platforms, with URL scheme
-`nmetalk`. Builds point at `nmetalk.com` by default; override with `NME_HOST` to
-build against a staging deployment.
+The native iOS identifier is `com.ctrlaltl.nme`; Android remains
+`com.nmetalk.app`. Both use the `nmetalk` URL scheme and point at
+`nmetalk.com` by default. Configure an iOS staging deployment in
+`apps/ios/Configuration/Shared.xcconfig`; Android continues to use `NME_HOST`.

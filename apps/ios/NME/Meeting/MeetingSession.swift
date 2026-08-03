@@ -6,6 +6,7 @@ import LiveKit
 final class MeetingSession: ObservableObject, MeetingSessionProtocol {
     @Published private(set) var state: MeetingState = .idle
     @Published private(set) var participants: [ParticipantSnapshot] = []
+    @Published private(set) var pendingKnocks: [PendingKnock] = []
     @Published private(set) var unreadCount = 0
     @Published private(set) var microphoneEnabled = false
     @Published private(set) var cameraEnabled = false
@@ -18,6 +19,7 @@ final class MeetingSession: ObservableObject, MeetingSessionProtocol {
 
     private var generation = UUID()
     private var currentRelayMode = false
+    private var admissionContext: AdmissionContext?
     private var dataHandler: (@MainActor @Sendable (Data, String?) -> Void)?
 
     var changes: AnyPublisher<Void, Never> {
@@ -74,6 +76,7 @@ final class MeetingSession: ObservableObject, MeetingSessionProtocol {
                 generation: attempt
             )
             guard isCurrent(attempt) else { return }
+            var connectedCredentials = directCredentials
 
             state = .connectingDirect
             configureEvents(generation: attempt)
@@ -128,9 +131,15 @@ final class MeetingSession: ObservableObject, MeetingSessionProtocol {
                 ))
                 guard isCurrent(attempt) else { return }
                 currentRelayMode = true
+                connectedCredentials = relayCredentials
             }
 
             guard isCurrent(attempt) else { return }
+            admissionContext = AdmissionContext(
+                roomID: identity.roomID,
+                hostKey: hostKey,
+                participantIdentity: connectedCredentials.identity
+            )
             state = .connected(relayed: currentRelayMode)
         } catch is CancellationError {
             guard isCurrent(attempt) else { return }
@@ -174,6 +183,39 @@ final class MeetingSession: ObservableObject, MeetingSessionProtocol {
     func blockParticipant(identity: String) async {
         await engine.blockParticipant(identity: identity)
         participants.removeAll { $0.identity == identity && !$0.isLocal }
+    }
+
+    func refreshPendingKnocks() async throws {
+        guard let admissionContext, isConnectedOrReconnecting else {
+            pendingKnocks = []
+            return
+        }
+        pendingKnocks = try await API.listKnocks(
+            roomID: admissionContext.roomID,
+            hostKey: admissionContext.hostKey,
+            participantIdentity: admissionContext.participantIdentity
+        )
+        .sorted {
+            if $0.createdAt != $1.createdAt { return $0.createdAt < $1.createdAt }
+            return $0.id < $1.id
+        }
+    }
+
+    func resolveKnock(id: String, admit: Bool) async throws {
+        guard let admissionContext, isConnectedOrReconnecting else {
+            throw LifecycleError.notConnected
+        }
+        let status = try await API.resolveKnock(
+            roomID: admissionContext.roomID,
+            knockID: id,
+            admit: admit,
+            hostKey: admissionContext.hostKey,
+            participantIdentity: admissionContext.participantIdentity
+        )
+        guard status == (admit ? "admitted" : "denied") else {
+            throw LifecycleError.invalidLobbyResponse
+        }
+        pendingKnocks.removeAll { $0.id == id }
     }
 
     func videoTrack(for identifier: String) -> VideoTrack? {
@@ -239,7 +281,10 @@ final class MeetingSession: ObservableObject, MeetingSessionProtocol {
             state = .connected(relayed: currentRelayMode)
         case let .disconnected(error):
             guard state != .ended else { return }
+            pendingKnocks = []
+            admissionContext = nil
             state = .failed(error.map(Self.failure(for:)) ?? .connection)
+            Task { await self.cleanupEngine() }
         case let .data(data, senderIdentity):
             dataHandler?(data, senderIdentity)
         }
@@ -249,18 +294,29 @@ final class MeetingSession: ObservableObject, MeetingSessionProtocol {
         engine.setEventHandler(nil)
         await engine.disconnect()
         participants = []
+        pendingKnocks = []
         microphoneEnabled = false
         cameraEnabled = false
         unreadCount = 0
         currentRelayMode = false
+        admissionContext = nil
     }
 
     private func resetEphemeralState() {
         participants = []
+        pendingKnocks = []
         unreadCount = 0
         microphoneEnabled = false
         cameraEnabled = false
         currentRelayMode = false
+        admissionContext = nil
+    }
+
+    private var isConnectedOrReconnecting: Bool {
+        switch state {
+        case .connected, .reconnecting: true
+        default: false
+        }
     }
 
     private func isCurrent(_ value: UUID) -> Bool {
@@ -293,4 +349,12 @@ private enum LifecycleError: Error {
     case denied
     case noAnswer
     case relayUnavailable
+    case notConnected
+    case invalidLobbyResponse
+}
+
+private struct AdmissionContext {
+    let roomID: String
+    let hostKey: String?
+    let participantIdentity: String
 }

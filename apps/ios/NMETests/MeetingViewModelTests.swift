@@ -136,6 +136,32 @@ final class MeetingViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.isChatPresented)
     }
 
+    func testLeaveIsIdempotentForToolbarAndViewDisappearance() async throws {
+        let session = FakePresentationSession()
+        let viewModel = try makeViewModel(session: session)
+
+        await viewModel.leave()
+        await viewModel.leave()
+
+        XCTAssertEqual(session.leaveCount, 1)
+    }
+
+    func testLobbyRequestsArePresentedAndResolutionIsForwarded() async throws {
+        let session = FakePresentationSession()
+        session.pendingKnocks = [
+            PendingKnock(id: "later", displayName: "Taylor", createdAt: 20),
+            PendingKnock(id: "first", displayName: "Jordan", createdAt: 10),
+        ]
+        let viewModel = try makeViewModel(session: session)
+
+        XCTAssertEqual(viewModel.pendingKnocks.map(\.displayName), ["Taylor", "Jordan"])
+
+        await viewModel.resolveLobbyRequest(id: "first", admit: true)
+
+        XCTAssertEqual(session.lobbyResolutions, [.init(id: "first", admit: true)])
+        XCTAssertEqual(viewModel.pendingKnocks.map(\.id), ["later"])
+    }
+
     private func makeViewModel(session: FakePresentationSession) throws -> MeetingViewModel {
         MeetingViewModel(
             identity: try RoomIdentity(encodedKey: encodedKey),
@@ -168,8 +194,14 @@ final class MeetingViewModelTests: XCTestCase {
 
 @MainActor
 private final class FakePresentationSession: MeetingSessionProtocol {
+    struct LobbyResolution: Equatable {
+        let id: String
+        let admit: Bool
+    }
+
     var state: MeetingState = .connected(relayed: false)
     var participants: [ParticipantSnapshot] = []
+    var pendingKnocks: [PendingKnock] = []
     var unreadCount = 0
     var microphoneEnabled = false
     var cameraEnabled = false
@@ -182,6 +214,7 @@ private final class FakePresentationSession: MeetingSessionProtocol {
     private(set) var publishedData: [Data] = []
     private(set) var blockedIdentities: [String] = []
     private(set) var leaveCount = 0
+    private(set) var lobbyResolutions: [LobbyResolution] = []
 
     func join(identity _: RoomIdentity, displayName _: String, cameraEnabled _: Bool) async {}
 
@@ -211,6 +244,14 @@ private final class FakePresentationSession: MeetingSessionProtocol {
 
     func blockParticipant(identity: String) async {
         blockedIdentities.append(identity)
+    }
+
+    func refreshPendingKnocks() async throws {}
+
+    func resolveKnock(id: String, admit: Bool) async throws {
+        lobbyResolutions.append(.init(id: id, admit: admit))
+        pendingKnocks.removeAll { $0.id == id }
+        changeSubject.send()
     }
 
     func videoTrack(for _: String) -> VideoTrack? { nil }

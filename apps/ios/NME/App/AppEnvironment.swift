@@ -113,6 +113,9 @@ private final class UITestMeetingSession: MeetingSessionProtocol {
         ),
     ]
     private(set) var unreadCount = 0
+    private(set) var pendingKnocks: [PendingKnock] = [
+        PendingKnock(id: "ui-knock", displayName: "Jordan", createdAt: 1),
+    ]
     private(set) var microphoneEnabled = true
     private(set) var cameraEnabled = false
     var changes: AnyPublisher<Void, Never> { changeSubject.eraseToAnyPublisher() }
@@ -155,6 +158,13 @@ private final class UITestMeetingSession: MeetingSessionProtocol {
 
     func blockParticipant(identity: String) async {
         participants.removeAll { $0.identity == identity && !$0.isLocal }
+        changeSubject.send()
+    }
+
+    func refreshPendingKnocks() async throws {}
+
+    func resolveKnock(id: String, admit _: Bool) async throws {
+        pendingKnocks.removeAll { $0.id == id }
         changeSubject.send()
     }
 

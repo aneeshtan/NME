@@ -22,7 +22,10 @@ struct MeetingView: View {
             .padding(.bottom, 6)
         }
         .foregroundStyle(AppTheme.foreground)
-        .task { await viewModel.start() }
+        .task {
+            await viewModel.start()
+            await viewModel.pollLobby()
+        }
         .sheet(
             isPresented: Binding(
                 get: { viewModel.isChatPresented },
@@ -139,6 +142,10 @@ struct MeetingView: View {
     private var participantLayout: some View {
         ScrollView {
             VStack(spacing: 10) {
+                if !viewModel.pendingKnocks.isEmpty {
+                    lobbyPanel
+                }
+
                 if let featured = viewModel.featuredParticipant {
                     tile(featured)
                         .aspectRatio(16 / 9, contentMode: .fit)
@@ -166,6 +173,45 @@ struct MeetingView: View {
             reduceMotion ? nil : .spring(response: 0.36, dampingFraction: 0.86),
             value: viewModel.orderedParticipants
         )
+    }
+
+    private var lobbyPanel: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("Waiting room", systemImage: "person.crop.circle.badge.clock")
+                .font(.system(size: 15, weight: .semibold, design: .rounded))
+
+            ForEach(viewModel.pendingKnocks, id: \.id) { knock in
+                HStack(spacing: 10) {
+                    Text(knock.displayName)
+                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                        .lineLimit(1)
+                    Spacer(minLength: 8)
+                    Button("Deny", role: .destructive) {
+                        Task { await viewModel.resolveLobbyRequest(id: knock.id, admit: false) }
+                    }
+                    .buttonStyle(.bordered)
+                    .frame(minHeight: 44)
+                    .disabled(viewModel.isLobbyActionBusy(id: knock.id))
+                    .accessibilityLabel("Deny \(knock.displayName)")
+
+                    Button("Admit") {
+                        Task { await viewModel.resolveLobbyRequest(id: knock.id, admit: true) }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(AppTheme.accent)
+                    .frame(minHeight: 44)
+                    .disabled(viewModel.isLobbyActionBusy(id: knock.id))
+                    .accessibilityLabel("Admit \(knock.displayName)")
+                }
+            }
+        }
+        .padding(14)
+        .background(AppTheme.surface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(AppTheme.accent.opacity(0.35), lineWidth: 1)
+        }
+        .accessibilityElement(children: .contain)
     }
 
     private var columns: [GridItem] {

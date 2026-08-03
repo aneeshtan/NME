@@ -156,6 +156,63 @@ final class MeetingSessionTests: XCTestCase {
         XCTAssertEqual(session.state, .connected(relayed: false))
     }
 
+    func testTerminalDisconnectTearsDownMediaAndEphemeralState() async throws {
+        let fixture = try Fixture()
+        let API = FakeMeetingAPI(joinResults: [.credentials(fixture.direct)])
+        let engine = FakeMeetingEngine(outcomes: [.success(())])
+        let session = makeSession(API: API, engine: engine)
+        await session.join(identity: fixture.identity, displayName: "Guest", cameraEnabled: true)
+
+        engine.emit(.disconnected(.connection))
+        await Task.yield()
+
+        XCTAssertEqual(session.state, .failed(.connection))
+        XCTAssertEqual(engine.disconnectCount, 1)
+        XCTAssertTrue(session.participants.isEmpty)
+        XCTAssertFalse(session.microphoneEnabled)
+        XCTAssertFalse(session.cameraEnabled)
+    }
+
+    func testConnectedParticipantCanListAndResolveLobbyKnocks() async throws {
+        let fixture = try Fixture()
+        let knock = PendingKnock(id: "knock-1", displayName: "Jordan", createdAt: 42)
+        let API = FakeMeetingAPI(
+            joinResults: [.credentials(fixture.direct)],
+            pendingKnocks: [knock]
+        )
+        let engine = FakeMeetingEngine(outcomes: [.success(())])
+        let session = makeSession(API: API, engine: engine)
+        await session.join(identity: fixture.identity, displayName: "Host", cameraEnabled: false)
+
+        try await session.refreshPendingKnocks()
+
+        XCTAssertEqual(session.pendingKnocks, [knock])
+        let listRequests = await API.listRequests
+        XCTAssertEqual(
+            listRequests,
+            [.init(
+                roomID: fixture.identity.roomID,
+                hostKey: nil,
+                participantIdentity: fixture.direct.identity
+            )]
+        )
+
+        try await session.resolveKnock(id: knock.id, admit: true)
+
+        XCTAssertTrue(session.pendingKnocks.isEmpty)
+        let resolveRequests = await API.resolveRequests
+        XCTAssertEqual(
+            resolveRequests,
+            [.init(
+                roomID: fixture.identity.roomID,
+                knockID: knock.id,
+                admit: true,
+                hostKey: nil,
+                participantIdentity: fixture.direct.identity
+            )]
+        )
+    }
+
     func testLeaveDisconnectsAndClearsEphemeralState() async throws {
         let fixture = try Fixture()
         let API = FakeMeetingAPI(joinResults: [.credentials(fixture.direct)])
@@ -254,6 +311,20 @@ private struct Fixture {
 }
 
 private actor FakeMeetingAPI: MeetingAPI {
+    struct ListRequest: Equatable, Sendable {
+        let roomID: String
+        let hostKey: String?
+        let participantIdentity: String?
+    }
+
+    struct ResolveRequest: Equatable, Sendable {
+        let roomID: String
+        let knockID: String
+        let admit: Bool
+        let hostKey: String?
+        let participantIdentity: String?
+    }
+
     private let configurationValue = ClientConfiguration(
         livekitUrl: "wss://sfu.nmetalk.com",
         maxParticipants: 12,
@@ -265,20 +336,27 @@ private actor FakeMeetingAPI: MeetingAPI {
     private var joinContinuation: CheckedContinuation<Void, Never>?
     private var relayFlags: [Bool] = []
     private var claims = 0
+    private var knocks: [PendingKnock]
+    private var knockLists: [ListRequest] = []
+    private var knockResolutions: [ResolveRequest] = []
 
     init(
         joinResults: [JoinResult],
         claimResults: [AdmissionResult] = [],
-        suspendJoin: Bool = false
+        suspendJoin: Bool = false,
+        pendingKnocks: [PendingKnock] = []
     ) {
         self.joinResults = joinResults
         self.claimResults = claimResults
         self.suspendJoin = suspendJoin
+        knocks = pendingKnocks
     }
 
     var joinRelayFlags: [Bool] { relayFlags }
     var joinCallCount: Int { relayFlags.count }
     var claimCount: Int { claims }
+    var listRequests: [ListRequest] { knockLists }
+    var resolveRequests: [ResolveRequest] { knockResolutions }
 
     func configuration() async throws -> ClientConfiguration { configurationValue }
 
@@ -304,18 +382,35 @@ private actor FakeMeetingAPI: MeetingAPI {
     }
 
     func listKnocks(
-        roomID _: String,
-        hostKey _: String?,
-        participantIdentity _: String?
-    ) async throws -> [PendingKnock] { [] }
+        roomID: String,
+        hostKey: String?,
+        participantIdentity: String?
+    ) async throws -> [PendingKnock] {
+        knockLists.append(.init(
+            roomID: roomID,
+            hostKey: hostKey,
+            participantIdentity: participantIdentity
+        ))
+        return knocks
+    }
 
     func resolveKnock(
-        roomID _: String,
-        knockID _: String,
-        admit _: Bool,
-        hostKey _: String?,
-        participantIdentity _: String?
-    ) async throws -> String { "admitted" }
+        roomID: String,
+        knockID: String,
+        admit: Bool,
+        hostKey: String?,
+        participantIdentity: String?
+    ) async throws -> String {
+        knockResolutions.append(.init(
+            roomID: roomID,
+            knockID: knockID,
+            admit: admit,
+            hostKey: hostKey,
+            participantIdentity: participantIdentity
+        ))
+        knocks.removeAll { $0.id == knockID }
+        return admit ? "admitted" : "denied"
+    }
 
     func releaseJoin() {
         joinContinuation?.resume()

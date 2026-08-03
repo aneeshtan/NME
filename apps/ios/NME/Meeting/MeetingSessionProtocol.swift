@@ -46,6 +46,7 @@ protocol MeetingEngine: AnyObject {
 protocol MeetingSessionProtocol: AnyObject {
     var state: MeetingState { get }
     var participants: [ParticipantSnapshot] { get }
+    var pendingKnocks: [PendingKnock] { get }
     var unreadCount: Int { get }
     var microphoneEnabled: Bool { get }
     var cameraEnabled: Bool { get }
@@ -58,6 +59,8 @@ protocol MeetingSessionProtocol: AnyObject {
     func flipCamera() async throws
     func publishData(_ data: Data) async throws
     func blockParticipant(identity: String) async
+    func refreshPendingKnocks() async throws
+    func resolveKnock(id: String, admit: Bool) async throws
     func videoTrack(for identifier: String) -> VideoTrack?
     func setDataHandler(
         _ handler: (@MainActor @Sendable (Data, String?) -> Void)?
