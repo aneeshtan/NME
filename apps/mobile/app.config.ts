@@ -55,7 +55,9 @@ const config: ExpoConfig = {
   },
 
   ios: {
-    bundleIdentifier: 'com.nmetalk.app',
+    // This must match the signed App ID already used by the iOS project.
+    bundleIdentifier: 'com.ctrlaltl.nme',
+    appleTeamId: 'WC955H63L3',
     buildNumber: '1',
     supportsTablet: true,
 
@@ -87,13 +89,21 @@ const config: ExpoConfig = {
       UIBackgroundModes: ['audio'],
 
       /**
-       * Export compliance. This app implements AES-GCM end-to-end encryption
-       * of user content, which is well beyond the "HTTPS only" exemption, so
-       * the honest answer is yes. See docs/store-submission.md — answering
-       * `false` here to skip a form would be a false declaration to a
-       * government agency, not a shortcut.
+       * Export compliance is deliberately *not* declared here.
+       *
+       * This app implements AES-GCM end-to-end encryption of user content,
+       * which is well beyond the "HTTPS only" exemption, so the honest answer
+       * is yes — but declaring `ITSAppUsesNonExemptEncryption: true` in the
+       * binary makes App Store Connect look for a matching
+       * `ITSEncryptionExportComplianceCode` and reject the upload with error
+       * 90592 when the two disagree. With the key absent, the same "yes" is
+       * given once per build in App Store Connect instead, where it cannot
+       * drift out of sync with a code compiled in months earlier.
+       *
+       * This is a change of venue, not of answer. See
+       * docs/store-submission.md — answering `false` anywhere to skip a form
+       * would be a false declaration to a government agency, not a shortcut.
        */
-      ITSAppUsesNonExemptEncryption: true,
 
       // Mixed content is not needed; the app talks to exactly one https origin.
       NSAppTransportSecurity: { NSAllowsArbitraryLoads: false },
@@ -186,6 +196,7 @@ const config: ExpoConfig = {
 
   plugins: [
     '@livekit/react-native-expo-plugin',
+    '@config-plugins/react-native-webrtc',
     [
       'expo-splash-screen',
       {
