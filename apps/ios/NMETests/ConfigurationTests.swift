@@ -7,7 +7,11 @@ final class ConfigurationTests: XCTestCase {
 
         XCTAssertEqual(Bundle.main.bundleIdentifier, "com.ctrlaltl.nme")
         XCTAssertEqual(info["CFBundleDisplayName"] as? String, "NME Talk")
-        XCTAssertEqual(info["ITSAppUsesNonExemptEncryption"] as? Bool, true)
+        // Deliberately absent: declaring it in the binary makes App Store
+        // Connect demand a matching ITSEncryptionExportComplianceCode and fail
+        // the upload with error 90592. The same "yes, non-exempt" answer is
+        // given per build in App Store Connect instead.
+        XCTAssertNil(info["ITSAppUsesNonExemptEncryption"])
         XCTAssertEqual(info["UIBackgroundModes"] as? [String], ["audio"])
         let builtInfo = try propertyList(
             at: Bundle.main.bundleURL.appendingPathComponent("Info.plist")
