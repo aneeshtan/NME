@@ -18,3 +18,8 @@ infra/caddy_config/
 apps/mobile/ios/
 apps/mobile/android/
 apps/mobile/.expo/
+
+# Per-user Xcode state (window layout, breakpoints, last-selected scheme). The
+# native project itself is generated from apps/ios/project.yml by xcodegen and
+# is committed; only this local noise is ignored.
+xcuserdata/
